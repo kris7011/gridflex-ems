@@ -1,0 +1,70 @@
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.vs/
+.vscode/*
+!.vscode/settings.json
+.idea/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+TestResults/
+coverage/
+coverage.xml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# C and C++
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.out
+
+# CMake
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+secrets.json
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-data/
+
+# Temporary files
+*.tmp
+*.temp
