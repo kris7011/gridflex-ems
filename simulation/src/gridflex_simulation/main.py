@@ -1,5 +1,9 @@
 from gridflex_simulation.battery import Battery
 from gridflex_simulation.building import BuildingLoad
+from gridflex_simulation.energy_balance import (
+    EnergyBalanceCalculator,
+    EnergyBalanceStatus,
+)
 from gridflex_simulation.solar import SolarArray
 
 
@@ -126,24 +130,27 @@ def main() -> None:
         f"{consumed_energy_kwh:.1f} kWh"
     )
 
+    balance = EnergyBalanceCalculator.calculate(
+        generated_energy_kwh=generated_energy_kwh,
+        consumed_energy_kwh=consumed_energy_kwh,
+    )
+
     print()
     print("Energy balance")
     print("--------------")
 
-    net_energy_kwh = (
-        generated_energy_kwh - consumed_energy_kwh
-    )
-
-    if net_energy_kwh >= 0:
+    if balance.status is EnergyBalanceStatus.SURPLUS:
         print(
             f"Energy surplus: "
-            f"{net_energy_kwh:.1f} kWh"
+            f"{balance.surplus_energy_kwh:.1f} kWh"
         )
-    else:
+    elif balance.status is EnergyBalanceStatus.DEFICIT:
         print(
             f"Energy deficit: "
-            f"{abs(net_energy_kwh):.1f} kWh"
+            f"{balance.deficit_energy_kwh:.1f} kWh"
         )
+    else:
+        print("Energy generation and consumption are balanced.")
 
 
 if __name__ == "__main__":
