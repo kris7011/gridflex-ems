@@ -1,11 +1,14 @@
 from gridflex_simulation.battery import Battery
+from gridflex_simulation.building import BuildingLoad
 from gridflex_simulation.solar import SolarArray
 
 
 def main() -> None:
     """
-    Run a small demonstration of the GridFlex EMS simulation components.
+    Run a demonstration of the GridFlex EMS simulation components.
     """
+
+    interval_hours = 1.0
 
     battery = Battery(
         capacity_kwh=100.0,
@@ -15,6 +18,11 @@ def main() -> None:
     solar_array = SolarArray(
         installed_capacity_kw=120.0,
         performance_ratio=0.85,
+    )
+
+    building = BuildingLoad(
+        base_load_kw=30.0,
+        peak_load_kw=90.0,
     )
 
     print("GridFlex EMS simulation")
@@ -55,9 +63,8 @@ def main() -> None:
     print("----------------")
 
     irradiance_factor = 0.75
-    interval_hours = 1.0
 
-    output_power_kw = solar_array.calculate_output_power_kw(
+    solar_output_power_kw = solar_array.calculate_output_power_kw(
         irradiance_factor=irradiance_factor,
     )
 
@@ -76,12 +83,67 @@ def main() -> None:
     )
     print(
         f"Current output power: "
-        f"{output_power_kw:.1f} kW"
+        f"{solar_output_power_kw:.1f} kW"
     )
     print(
         f"Generated energy: "
         f"{generated_energy_kwh:.1f} kWh"
     )
+
+    print()
+    print("Building consumption")
+    print("--------------------")
+
+    activity_factor = 0.60
+
+    building_power_demand_kw = building.calculate_power_demand_kw(
+        activity_factor=activity_factor,
+    )
+
+    consumed_energy_kwh = building.calculate_consumed_energy_kwh(
+        activity_factor=activity_factor,
+        interval_hours=interval_hours,
+    )
+
+    print(
+        f"Base load: "
+        f"{building.base_load_kw:.1f} kW"
+    )
+    print(
+        f"Peak load: "
+        f"{building.peak_load_kw:.1f} kW"
+    )
+    print(
+        f"Activity factor: "
+        f"{activity_factor:.2f}"
+    )
+    print(
+        f"Current power demand: "
+        f"{building_power_demand_kw:.1f} kW"
+    )
+    print(
+        f"Consumed energy: "
+        f"{consumed_energy_kwh:.1f} kWh"
+    )
+
+    print()
+    print("Energy balance")
+    print("--------------")
+
+    net_energy_kwh = (
+        generated_energy_kwh - consumed_energy_kwh
+    )
+
+    if net_energy_kwh >= 0:
+        print(
+            f"Energy surplus: "
+            f"{net_energy_kwh:.1f} kWh"
+        )
+    else:
+        print(
+            f"Energy deficit: "
+            f"{abs(net_energy_kwh):.1f} kWh"
+        )
 
 
 if __name__ == "__main__":

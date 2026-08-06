@@ -49,3 +49,8 @@ select = [
 python_version = "3.12"
 strict = true
 files = ["src", "tests"]
+
+[tool.coverage.run]
+omit = [
+    "*/gridflex_simulation/main.py",
+]
