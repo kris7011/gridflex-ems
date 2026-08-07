@@ -82,6 +82,10 @@ def test_timeline_runs_steps_in_order_and_preserves_battery_state() -> None:
     assert second_result.step_number == 2
     assert third_result.step_number == 3
 
+    assert first_result.measurement.elapsed_time_hours == pytest.approx(1.0)
+    assert second_result.measurement.elapsed_time_hours == pytest.approx(2.0)
+    assert third_result.measurement.elapsed_time_hours == pytest.approx(3.0)
+
     assert first_result.generated_energy_kwh == pytest.approx(76.5)
     assert first_result.consumed_energy_kwh == pytest.approx(66.0)
 

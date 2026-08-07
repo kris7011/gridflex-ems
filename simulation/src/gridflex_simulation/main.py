@@ -63,44 +63,32 @@ def main() -> None:
     print("--------------------------------")
 
     for result in results:
-        simulation_step = result.simulation_step
+        measurement = result.measurement
         management_result = result.management_result
-        balance = management_result.balance
         battery_dispatch = management_result.battery_dispatch
-        grid_transfer = management_result.grid_transfer
 
         print()
-        print(f"Step {result.step_number}")
+        print(f"Step {measurement.step_number}")
         print("------")
-        print(f"Irradiance factor: " f"{simulation_step.irradiance_factor:.2f}")
-        print(f"Building activity factor: " f"{simulation_step.activity_factor:.2f}")
-        print(f"Interval: " f"{simulation_step.interval_hours:.1f} hour")
 
-        print(f"Solar generation: " f"{result.generated_energy_kwh:.1f} kWh")
-        print(f"Building consumption: " f"{result.consumed_energy_kwh:.1f} kWh")
+        print(f"Elapsed time: " f"{measurement.elapsed_time_hours:.1f} hours")
+        print(f"Interval: " f"{measurement.interval_hours:.1f} hour")
 
-        print(f"Energy balance: {balance.status.value}")
+        print(f"Solar generation: " f"{measurement.generated_energy_kwh:.1f} kWh")
+        print(f"Building consumption: " f"{measurement.consumed_energy_kwh:.1f} kWh")
+        print(f"Net energy: " f"{measurement.net_energy_kwh:.1f} kWh")
 
         print(f"Battery action: " f"{battery_dispatch.action.value}")
         print(
-            f"Battery SOC: "
-            f"{battery_dispatch.initial_state_of_charge_kwh:.1f} "
-            f"→ "
-            f"{battery_dispatch.final_state_of_charge_kwh:.1f} kWh"
+            f"Battery state of charge: "
+            f"{measurement.battery_state_of_charge_kwh:.1f} kWh"
         )
 
-        if grid_transfer is None:
-            print("Grid transfer: none")
-        else:
-            print(
-                f"Grid transfer: "
-                f"{grid_transfer.direction.value} "
-                f"{grid_transfer.transferred_energy_kwh:.1f} kWh"
-            )
+        print(f"Grid import: " f"{measurement.grid_import_energy_kwh:.1f} kWh")
+        print(f"Grid export: " f"{measurement.grid_export_energy_kwh:.1f} kWh")
+        print(f"Grid net energy: " f"{measurement.grid_net_energy_kwh:.1f} kWh")
 
-        print(
-            f"Unresolved energy: " f"{management_result.unresolved_energy_kwh:.1f} kWh"
-        )
+        print(f"Unresolved energy: " f"{measurement.unresolved_energy_kwh:.1f} kWh")
 
     print()
     print("Final system state")
