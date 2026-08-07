@@ -1,27 +1,21 @@
 from gridflex_simulation.battery import Battery
 from gridflex_simulation.building import BuildingLoad
-from gridflex_simulation.energy_balance import (
-    EnergyBalanceStatus,
-)
-from gridflex_simulation.energy_management import (
-    EnergyManagementService,
-)
 from gridflex_simulation.grid import GridConnection
+from gridflex_simulation.simulation_timeline import (
+    SimulationStep,
+    SimulationTimelineRunner,
+)
 from gridflex_simulation.solar import SolarArray
 
 
 def main() -> None:
     """
-    Run an integrated GridFlex EMS simulation example.
+    Run a multi-step GridFlex EMS simulation.
     """
-
-    interval_hours = 1.0
-    irradiance_factor = 0.75
-    activity_factor = 0.60
 
     battery = Battery(
         capacity_kwh=100.0,
-        state_of_charge_kwh=95.0,
+        state_of_charge_kwh=40.0,
     )
 
     solar_array = SolarArray(
@@ -39,94 +33,83 @@ def main() -> None:
         max_export_power_kw=50.0,
     )
 
-    generated_energy_kwh = solar_array.calculate_generated_energy_kwh(
-        irradiance_factor=irradiance_factor,
-        interval_hours=interval_hours,
+    steps = (
+        SimulationStep(
+            irradiance_factor=0.75,
+            activity_factor=0.60,
+            interval_hours=1.0,
+        ),
+        SimulationStep(
+            irradiance_factor=0.25,
+            activity_factor=0.80,
+            interval_hours=1.0,
+        ),
+        SimulationStep(
+            irradiance_factor=1.00,
+            activity_factor=0.20,
+            interval_hours=1.0,
+        ),
     )
 
-    consumed_energy_kwh = building.calculate_consumed_energy_kwh(
-        activity_factor=activity_factor,
-        interval_hours=interval_hours,
-    )
-
-    management_result = EnergyManagementService.manage(
+    results = SimulationTimelineRunner.run(
+        steps=steps,
         battery=battery,
+        solar_array=solar_array,
+        building=building,
         grid=grid,
-        generated_energy_kwh=generated_energy_kwh,
-        consumed_energy_kwh=consumed_energy_kwh,
-        interval_hours=interval_hours,
     )
 
-    balance = management_result.balance
-    dispatch_result = management_result.battery_dispatch
-    grid_transfer_result = management_result.grid_transfer
+    print("GridFlex EMS timeline simulation")
+    print("--------------------------------")
 
-    print("GridFlex EMS simulation")
-    print("-----------------------")
+    for result in results:
+        simulation_step = result.simulation_step
+        management_result = result.management_result
+        balance = management_result.balance
+        battery_dispatch = management_result.battery_dispatch
+        grid_transfer = management_result.grid_transfer
+
+        print()
+        print(f"Step {result.step_number}")
+        print("------")
+        print(f"Irradiance factor: " f"{simulation_step.irradiance_factor:.2f}")
+        print(f"Building activity factor: " f"{simulation_step.activity_factor:.2f}")
+        print(f"Interval: " f"{simulation_step.interval_hours:.1f} hour")
+
+        print(f"Solar generation: " f"{result.generated_energy_kwh:.1f} kWh")
+        print(f"Building consumption: " f"{result.consumed_energy_kwh:.1f} kWh")
+
+        print(f"Energy balance: {balance.status.value}")
+
+        print(f"Battery action: " f"{battery_dispatch.action.value}")
+        print(
+            f"Battery SOC: "
+            f"{battery_dispatch.initial_state_of_charge_kwh:.1f} "
+            f"→ "
+            f"{battery_dispatch.final_state_of_charge_kwh:.1f} kWh"
+        )
+
+        if grid_transfer is None:
+            print("Grid transfer: none")
+        else:
+            print(
+                f"Grid transfer: "
+                f"{grid_transfer.direction.value} "
+                f"{grid_transfer.transferred_energy_kwh:.1f} kWh"
+            )
+
+        print(
+            f"Unresolved energy: " f"{management_result.unresolved_energy_kwh:.1f} kWh"
+        )
 
     print()
-    print("Inputs")
-    print("------")
-    print(f"Simulation interval: {interval_hours:.1f} hour")
-    print(f"Irradiance factor: {irradiance_factor:.2f}")
-    print(f"Building activity factor: {activity_factor:.2f}")
-
-    print()
-    print("Energy")
-    print("------")
-    print(f"Solar generation: {generated_energy_kwh:.1f} kWh")
-    print(f"Building consumption: {consumed_energy_kwh:.1f} kWh")
-
-    if balance.status is EnergyBalanceStatus.SURPLUS:
-        print(f"Energy surplus: " f"{balance.surplus_energy_kwh:.1f} kWh")
-    elif balance.status is EnergyBalanceStatus.DEFICIT:
-        print(f"Energy deficit: " f"{balance.deficit_energy_kwh:.1f} kWh")
-    else:
-        print("Energy generation and consumption are balanced.")
-
-    print()
-    print("Battery dispatch")
-    print("----------------")
-    print(f"Action: {dispatch_result.action.value}")
-    print(f"Requested energy: " f"{dispatch_result.requested_energy_kwh:.1f} kWh")
-    print(f"Transferred energy: " f"{dispatch_result.transferred_energy_kwh:.1f} kWh")
-    print(f"Remaining energy: " f"{dispatch_result.remaining_energy_kwh:.1f} kWh")
+    print("Final system state")
+    print("------------------")
+    print(f"Battery state of charge: " f"{battery.state_of_charge_kwh:.1f} kWh")
     print(
-        f"Initial state of charge: "
-        f"{dispatch_result.initial_state_of_charge_kwh:.1f} kWh"
-    )
-    print(
-        f"Final state of charge: "
-        f"{dispatch_result.final_state_of_charge_kwh:.1f} kWh"
-    )
-    print(
-        f"Final state of charge percentage: "
+        f"Battery state of charge percentage: "
         f"{battery.state_of_charge_percentage:.1f}%"
     )
-
-    print()
-    print("Grid")
-    print("----")
-
-    if grid_transfer_result is None:
-        print("No grid transfer was required.")
-    else:
-        print(f"Direction: " f"{grid_transfer_result.direction.value}")
-        print(
-            f"Requested energy: " f"{grid_transfer_result.requested_energy_kwh:.1f} kWh"
-        )
-        print(
-            f"Transferred energy: "
-            f"{grid_transfer_result.transferred_energy_kwh:.1f} kWh"
-        )
-        print(
-            f"Remaining energy: " f"{grid_transfer_result.remaining_energy_kwh:.1f} kWh"
-        )
-
-    print()
-    print("System result")
-    print("-------------")
-    print(f"Unresolved energy: " f"{management_result.unresolved_energy_kwh:.1f} kWh")
 
 
 if __name__ == "__main__":
