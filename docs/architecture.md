@@ -59,6 +59,15 @@ Responsibilities:
 - Support reproducible test scenarios
 - Support experiments with different operating strategies
 
+The Python simulation milestone is now implemented.
+
+The detailed internal simulation architecture, including energy balance,
+battery dispatch, grid handling, timelines, measurements and reproducible
+scenario execution, is documented in:
+
+[Python Simulation Architecture](simulation-architecture.md)
+
+
 ### C++ controller
 
 Responsibilities:
