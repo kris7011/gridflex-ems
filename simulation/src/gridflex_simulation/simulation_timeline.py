@@ -7,6 +7,10 @@ from gridflex_simulation.energy_management import (
     EnergyManagementResult,
     EnergyManagementService,
 )
+from gridflex_simulation.energy_measurement import (
+    EnergyMeasurement,
+    EnergyMeasurementFactory,
+)
 from gridflex_simulation.grid import GridConnection
 from gridflex_simulation.solar import SolarArray
 
@@ -28,9 +32,17 @@ class SimulationStepResult:
     Contains the result of one completed simulation interval.
     """
 
-    step_number: int
     simulation_step: SimulationStep
+    measurement: EnergyMeasurement
     management_result: EnergyManagementResult
+
+    @property
+    def step_number(self) -> int:
+        """
+        Return the chronological step number.
+        """
+
+        return self.measurement.step_number
 
     @property
     def generated_energy_kwh(self) -> float:
@@ -38,7 +50,7 @@ class SimulationStepResult:
         Return solar energy generated during the step.
         """
 
-        return self.management_result.balance.generated_energy_kwh
+        return self.measurement.generated_energy_kwh
 
     @property
     def consumed_energy_kwh(self) -> float:
@@ -46,7 +58,7 @@ class SimulationStepResult:
         Return building energy consumed during the step.
         """
 
-        return self.management_result.balance.consumed_energy_kwh
+        return self.measurement.consumed_energy_kwh
 
     @property
     def final_battery_state_of_charge_kwh(self) -> float:
@@ -54,7 +66,7 @@ class SimulationStepResult:
         Return battery state of charge after the step.
         """
 
-        return self.management_result.battery_dispatch.final_state_of_charge_kwh
+        return self.measurement.battery_state_of_charge_kwh
 
 
 class SimulationTimelineRunner:
@@ -81,6 +93,7 @@ class SimulationTimelineRunner:
             raise ValueError("Simulation timeline must contain at least one step.")
 
         results: list[SimulationStepResult] = []
+        elapsed_time_hours = 0.0
 
         for step_number, simulation_step in enumerate(
             steps,
@@ -104,10 +117,19 @@ class SimulationTimelineRunner:
                 interval_hours=simulation_step.interval_hours,
             )
 
+            elapsed_time_hours += simulation_step.interval_hours
+
+            measurement = EnergyMeasurementFactory.create(
+                step_number=step_number,
+                elapsed_time_hours=elapsed_time_hours,
+                interval_hours=simulation_step.interval_hours,
+                management_result=management_result,
+            )
+
             results.append(
                 SimulationStepResult(
-                    step_number=step_number,
                     simulation_step=simulation_step,
+                    measurement=measurement,
                     management_result=management_result,
                 )
             )
