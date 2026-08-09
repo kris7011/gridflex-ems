@@ -153,7 +153,7 @@ The C++ controller is being developed to:
 * Make deterministic control decisions
 * Produce explicit control commands
 * Apply safety and operating limits
-* Prioritize energy sources
+* Prioritize energy sources in later controller strategies
 * Demonstrate performance-oriented software development
 * Provide independently testable control behavior
 
@@ -177,6 +177,12 @@ The current C++ implementation includes:
 * Configurable minimum and maximum battery state-of-charge boundaries
 * Charge limiting based on remaining battery capacity
 * Discharge limiting based on minimum battery reserve
+* A dedicated controller microbenchmark executable
+* Optional benchmark builds through CMake
+* Release-oriented benchmark measurements
+* Surplus, deficit and balanced-decision benchmark cases
+* Benchmark result consumption through a checksum
+* Linux benchmark smoke-test execution through GitHub Actions
 * 35 Catch2 unit tests
 * CTest integration
 * Windows Debug and Release builds using MSVC
@@ -207,6 +213,8 @@ gridflex-ems/
 │   └── ASP.NET Core API and application services
 │
 ├── controller/
+│   ├── benchmarks/
+│   │   └── energy_controller_benchmark.cpp
 │   ├── include/
 │   │   └── gridflex/
 │   │       └── controller/
@@ -285,9 +293,9 @@ selected.
 
 ## Current status
 
-Milestone 1 and Milestone 2 are complete.
+Milestone 1, Milestone 2 and Milestone 3 are complete.
 
-Milestone 3 is currently in development.
+Milestone 4 is the next planned development milestone.
 
 The Python simulation supports:
 
@@ -331,10 +339,15 @@ The C++ controller currently supports:
 * Minimum battery state-of-charge protection
 * Maximum battery state-of-charge protection
 * SOC-aware charge and discharge limiting
+* A dedicated performance benchmark executable
+* Release-oriented controller microbenchmarks
+* Surplus, deficit and balanced-decision benchmark cases
+* Benchmark timing through `std::chrono::steady_clock`
+* Benchmark warmup and repeated measured iterations
 * Automated unit testing with Catch2
 * 35 discovered C++ tests through CTest
 * Debug and Release builds with MSVC on Windows
-* Automated Linux builds and tests through GitHub Actions
+* Automated Linux builds, tests and benchmark smoke testing through GitHub Actions
 
 The detailed Python architecture is documented in:
 
@@ -1084,7 +1097,7 @@ into the main branch.
 * [x] Energy measurements
 * [x] Scenario configuration
 
-### Milestone 3: Control logic — In progress
+### Milestone 3: Control logic — Complete
 
 * [x] Initial energy control rules
 * [x] C++ project setup
@@ -1092,9 +1105,9 @@ into the main branch.
 * [x] Control commands
 * [x] Safety limits
 * [x] Initial controller unit-test infrastructure
-* [ ] Performance benchmarks
+* [x] Performance benchmarks
 
-Current Milestone 3 progress:
+Milestone 3 completion status:
 
 ```text
 C++ project foundation       Complete
@@ -1104,10 +1117,10 @@ C++ test infrastructure      Complete
 Linux C++ CI                 Complete
 Initial control rules        Complete
 Safety limits                Complete
-Performance benchmarks       Next
+Performance benchmarks       Complete
 ```
 
-### Milestone 4: Hardware abstraction
+### Milestone 4: Hardware abstraction — Next
 
 * [ ] C project setup
 * [ ] Sensor interfaces
@@ -1239,13 +1252,57 @@ Examples include:
 * Controller to hardware abstraction
 * ASP.NET Core API to system components
 
-### Performance tests
+### Performance benchmarks
 
-Performance tests will measure:
+The C++ controller includes a dedicated microbenchmark executable.
 
-* Controller execution time
-* Simulation throughput
-* Time-sensitive decision behavior
+The benchmark currently measures:
+
+* Surplus controller decisions
+* Deficit controller decisions
+* Balanced controller decisions
+* Total measured execution time
+* Average nanoseconds per decision
+* Decisions per second
+
+The benchmark uses:
+
+* `std::chrono::steady_clock`
+* A Release build
+* 100,000 warmup iterations per case
+* 10,000,000 measured iterations per case
+* Result consumption through a checksum
+
+The checksum keeps the controller output observable and reduces the risk of the
+compiler removing the work being measured as unused.
+
+The benchmark deliberately remains separate from the unit tests.
+
+Unit tests answer:
+
+```text
+Is the controller behavior correct?
+```
+
+The benchmark answers:
+
+```text
+How does the current controller decision path perform?
+```
+
+The benchmark is executed in Linux CI as a smoke test, but CI does not enforce
+performance thresholds.
+
+Shared CI runners can differ in:
+
+* CPU hardware
+* Virtualization
+* Current system load
+* Compiler environment
+* Power-management behavior
+
+Performance values from CI are therefore not treated as stable acceptance
+criteria.
 
 ## Current quality baseline
 
@@ -1270,7 +1327,7 @@ Tests are expected to verify meaningful domain rules, boundaries and edge cases.
 
 ### C++
 
-The current C++ baseline includes:
+The current C++ correctness baseline includes:
 
 ```text
 35 C++ tests passed
@@ -1284,13 +1341,49 @@ CTest passed
 Linux GitHub Actions build passed
 Linux GitHub Actions tests passed
 Controller CLI smoke test passed
+Controller benchmark smoke test passed
 ```
 
-The C++ quality baseline now covers domain contracts, deterministic controller
-decisions and battery operating constraints.
+The C++ quality baseline covers:
 
-Performance measurements are the next planned addition to the C++ quality
-baseline.
+* Domain contracts
+* Defensive validation
+* Deterministic controller decisions
+* Battery operating constraints
+* Windows and Linux builds
+* Unit-test execution
+* CLI linkage and execution
+* Benchmark compilation and execution
+
+### C++ performance baseline
+
+Representative local Windows/MSVC Release microbenchmark measurements were:
+
+```text
+Surplus decision:   approximately 23–25 ns/decision
+Deficit decision:   approximately 23–24 ns/decision
+Balanced decision:  approximately 11 ns/decision
+```
+
+Across five longer local benchmark runs, representative median measurements were
+approximately:
+
+```text
+Surplus decision:   24.29 ns/decision
+Deficit decision:   23.03 ns/decision
+Balanced decision:  11.05 ns/decision
+```
+
+These measurements are development-machine microbenchmark results.
+
+They are not real-time guarantees, production service-level objectives or
+portable performance guarantees.
+
+The measured loop also includes minimal checksum work used to consume the
+generated `ControlCommand` and keep the result observable to the optimizer.
+
+The purpose of the baseline is to make controller performance measurable before
+additional controller complexity is introduced.
 
 ## Continuous integration
 
@@ -1314,9 +1407,12 @@ The C++ workflow:
 * Displays CMake and compiler versions
 * Configures the controller as a Release build
 * Enables C++ testing
+* Enables C++ benchmark builds
 * Builds the controller
+* Builds the benchmark executable
 * Runs CTest
 * Executes the controller CLI as a smoke test
+* Executes the controller benchmark as a smoke test
 
 This gives the C++ component validation on both:
 
@@ -1327,6 +1423,9 @@ Windows + MSVC
 Continuous integration:
 Linux + C++ toolchain
 ```
+
+Performance timings from the shared Linux CI runner are not used as pass/fail
+thresholds.
 
 ## C++ build structure
 
@@ -1341,24 +1440,41 @@ energy_measurement.cpp
         │
         ▼
 gridflex_controller
-        │
-        │ static library
-        ▼
-gridflex_controller_cli
 ```
 
-Tests also link against the same controller library:
+Multiple executables consume the same library:
+
+```text
+                        gridflex_controller
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+              ▼                ▼                ▼
+gridflex_controller_cli   controller tests   controller benchmark
+```
+
+The concrete targets are:
 
 ```text
 gridflex_controller
         │
         ├──────────────► gridflex_controller_cli
         │
-        └──────────────► gridflex_controller_tests
+        ├──────────────► gridflex_controller_tests
+        │
+        └──────────────► gridflex_controller_benchmark
 ```
 
-This keeps reusable controller logic and domain models separate from executable
-entry points and test infrastructure.
+This keeps reusable controller logic and domain models separate from:
+
+* CLI entry points
+* Correctness tests
+* Performance measurement infrastructure
+
+The benchmark does not reimplement controller behavior.
+
+It links against the same `gridflex_controller` library used by the other C++
+executables.
 
 ## C++ testing infrastructure
 
@@ -1419,6 +1535,98 @@ EnergyController
         ├── charge and discharge power limits
         └── state-of-charge protection
 ```
+
+## C++ benchmark infrastructure
+
+The controller benchmark is built as a separate executable:
+
+```text
+energy_controller_benchmark.cpp
+              │
+              ▼
+gridflex_controller_benchmark
+              │
+              │ links against
+              ▼
+gridflex_controller
+```
+
+Benchmark builds are controlled through the CMake option:
+
+```text
+GRIDFLEX_BUILD_BENCHMARKS
+```
+
+The default value is:
+
+```text
+OFF
+```
+
+This means normal users of the controller do not have to build performance
+tooling.
+
+Benchmark development enables it explicitly:
+
+```text
+-DGRIDFLEX_BUILD_BENCHMARKS=ON
+```
+
+The benchmark currently executes three decision paths:
+
+```text
+EnergyMeasurement
+        │
+        ▼
+EnergyController::decide()
+        │
+        ├── Surplus  → ChargeBattery
+        ├── Deficit  → DischargeBattery
+        └── Balanced → Idle
+        │
+        ▼
+ControlCommand
+```
+
+Measurement objects and controller configuration are constructed before the
+timed loop.
+
+The timed loop therefore focuses on the controller decision path rather than
+measurement construction and validation.
+
+Each case performs:
+
+```text
+100,000 warmup iterations
+          │
+          ▼
+10,000,000 measured iterations
+          │
+          ▼
+elapsed time
+          │
+          ├── nanoseconds per decision
+          └── decisions per second
+```
+
+The benchmark consumes each produced command through a checksum.
+
+Conceptually:
+
+```text
+EnergyController::decide()
+          │
+          ▼
+ControlCommand
+          │
+          ▼
+checksum
+```
+
+The checksum has no energy-domain meaning.
+
+Its purpose is to make benchmark output observable so that compiler
+optimization cannot trivially discard unused controller results.
 
 ## Security considerations
 
@@ -1669,6 +1877,67 @@ library can be linked into and consumed by an executable.
 Additional controller behavior and integration will continue to be developed
 incrementally behind the library interface.
 
+## Running the C++ controller benchmark
+
+Configure the controller with benchmark builds enabled:
+
+```powershell
+cmake `
+  -S controller `
+  -B controller/build `
+  -DBUILD_TESTING=ON `
+  -DGRIDFLEX_BUILD_BENCHMARKS=ON
+```
+
+Build the Release benchmark:
+
+```powershell
+cmake `
+  --build controller/build `
+  --config Release `
+  --target gridflex_controller_benchmark
+```
+
+Run the benchmark on Windows:
+
+```powershell
+& ".\controller\build\Release\gridflex_controller_benchmark.exe"
+```
+
+The benchmark currently reports:
+
+```text
+Total measured time
+Average nanoseconds per decision
+Decisions per second
+Checksum
+```
+
+for:
+
+```text
+Surplus decision
+Deficit decision
+Balanced decision
+```
+
+The current configuration uses:
+
+```text
+Warmup iterations per case:   100,000
+Measured iterations per case: 10,000,000
+```
+
+The benchmark should be run using a Release build.
+
+Debug builds are intended for debugging and correctness work and are not used as
+the controller performance baseline.
+
+Performance results should be interpreted as measurements from the machine and
+compiler configuration on which they were produced.
+
+They are not portable timing guarantees.
+
 ## Current controller architecture
 
 The controller has explicit models on both sides of its domain boundary and a
@@ -1840,11 +2109,65 @@ Grid prioritization and fallback behavior will be introduced separately so that
 battery control, operating constraints and grid strategy remain independently
 testable.
 
+## C++ controller performance measurement
+
+Performance measurement was introduced after the initial deterministic
+controller behavior and operating limits were established.
+
+This sequence makes it possible to benchmark a known controller baseline before
+additional strategy and integration complexity is introduced.
+
+The current benchmark flow is:
+
+```text
+Validated EnergyMeasurement
+          │
+          ▼
+EnergyController::decide()
+          │
+          ▼
+ControlCommand
+          │
+          ▼
+Minimal checksum consumption
+          │
+          ▼
+Timing result
+```
+
+Three control paths are measured independently:
+
+```text
+Surplus
+   │
+   ▼
+ChargeBattery
+
+Deficit
+   │
+   ▼
+DischargeBattery
+
+Balanced
+   │
+   ▼
+Idle
+```
+
+Balanced decisions currently take a shorter logical path through the controller
+than active charge or discharge decisions.
+
+The benchmark therefore makes both controller performance and differences
+between decision paths visible.
+
+The benchmark baseline is intended to support comparisons as future controller
+behavior is added.
+
 ## Next development step
 
-Milestone 3 is in progress.
+Milestone 3 is complete.
 
-Completed controller work:
+Completed C++ controller work:
 
 ```text
 C++ project structure             Complete
@@ -1855,50 +2178,85 @@ Windows MSVC build                Complete
 Linux CI build                    Complete
 EnergyMeasurement input           Complete
 Measurement validation            Complete
-ControlCommand output              Complete
+ControlCommand output             Complete
 Control command validation        Complete
 Initial deterministic rules       Complete
 Controller operating limits       Complete
-Battery SOC protection             Complete
-Catch2 integration                 Complete
+Battery SOC protection            Complete
+Catch2 integration                Complete
 CTest integration                  Complete
 C++ CI test execution              Complete
+Benchmark infrastructure          Complete
+Release benchmark build           Complete
+Surplus benchmark                  Complete
+Deficit benchmark                  Complete
+Balanced benchmark                 Complete
+Linux benchmark smoke test         Complete
 ```
 
-The next development step is:
+The next development milestone is:
 
 ```text
-Performance benchmarks
+Milestone 4: Hardware abstraction
 ```
 
-The controller now has a validated input model, explicit output commands,
-deterministic decision rules and configurable battery operating constraints.
-
-The next step is to establish a measurable performance baseline for the C++
-controller before introducing additional control strategies and cross-language
-integration.
-
-The planned sequence is:
+The next implementation sequence is planned as:
 
 ```text
-Initial deterministic control rules    Complete
+C project setup
       │
       ▼
-Safety and operating limits            Complete
+Sensor interfaces
       │
       ▼
-Performance benchmarks                 Next
+Actuator interfaces
       │
       ▼
-Cross-language integration             Later
+Simulated hardware devices
+      │
+      ▼
+Error handling
+      │
+      ▼
+Controller integration
 ```
 
-Keeping performance measurement as a separate step makes it possible to
-benchmark the existing controller behavior before additional complexity is
-introduced.
+This introduces a separate low-level boundary beneath the C++ controller:
 
-The communication mechanism between Python and C++ will be selected separately
-and documented through an Architecture Decision Record.
+```text
+EnergyMeasurement
+      │
+      ▼
+C++ EnergyController
+      │
+      │ ControlCommand
+      ▼
+C Hardware Abstraction Layer
+      │
+      ├── Sensor interfaces
+      ├── Actuator interfaces
+      └── Simulated devices
+```
+
+The purpose of the C hardware abstraction layer is not to add another language
+for its own sake.
+
+It introduces a component with a different technical responsibility:
+
+```text
+Python
+Simulation and reference behavior
+
+C++
+Deterministic and performance-oriented control logic
+
+C
+Low-level hardware-facing interfaces
+```
+
+The communication mechanism between the larger Python, C++, C and future C#
+components will be selected separately and documented through an Architecture
+Decision Record.
 
 ## Disclaimer
 
