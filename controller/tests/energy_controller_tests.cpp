@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "gridflex/controller/control_command.hpp"
+#include "gridflex/controller/controller_limits.hpp"
 #include "gridflex/controller/energy_controller.hpp"
 #include "gridflex/controller/energy_measurement.hpp"
 
@@ -10,13 +11,25 @@ namespace
 {
 
     using gridflex::controller::ControlAction;
+    using gridflex::controller::ControllerLimits;
     using gridflex::controller::EnergyController;
     using gridflex::controller::EnergyMeasurement;
+
+    EnergyController create_controller()
+    {
+        return EnergyController{
+            ControllerLimits{
+                25.0,
+                30.0,
+                10.0,
+                90.0}};
+    }
 
     EnergyMeasurement create_measurement(
         const std::uint64_t step_number,
         const double interval_hours,
-        const double net_energy_kwh)
+        const double net_energy_kwh,
+        const double battery_state_of_charge_kwh = 40.0)
     {
         const double generated_energy_kwh =
             net_energy_kwh >= 0.0
@@ -35,7 +48,7 @@ namespace
             generated_energy_kwh,
             consumed_energy_kwh,
             net_energy_kwh,
-            40.0,
+            battery_state_of_charge_kwh,
             0.0,
             0.0,
             0.0};
@@ -45,7 +58,7 @@ namespace
 
 TEST_CASE("Energy controller charges battery during energy surplus")
 {
-    const EnergyController controller;
+    const auto controller = create_controller();
 
     const auto measurement =
         create_measurement(
@@ -63,7 +76,7 @@ TEST_CASE("Energy controller charges battery during energy surplus")
 
 TEST_CASE("Energy controller discharges battery during energy deficit")
 {
-    const EnergyController controller;
+    const auto controller = create_controller();
 
     const auto measurement =
         create_measurement(
@@ -81,7 +94,7 @@ TEST_CASE("Energy controller discharges battery during energy deficit")
 
 TEST_CASE("Energy controller idles when energy is balanced")
 {
-    const EnergyController controller;
+    const auto controller = create_controller();
 
     const auto measurement =
         create_measurement(
@@ -99,7 +112,7 @@ TEST_CASE("Energy controller idles when energy is balanced")
 
 TEST_CASE("Energy controller converts interval energy to requested power")
 {
-    const EnergyController controller;
+    const auto controller = create_controller();
 
     const auto measurement =
         create_measurement(
@@ -115,7 +128,7 @@ TEST_CASE("Energy controller converts interval energy to requested power")
 
 TEST_CASE("Energy controller treats tiny positive residual as balanced")
 {
-    const EnergyController controller;
+    const auto controller = create_controller();
 
     const auto measurement =
         create_measurement(
@@ -131,7 +144,7 @@ TEST_CASE("Energy controller treats tiny positive residual as balanced")
 
 TEST_CASE("Energy controller treats tiny negative residual as balanced")
 {
-    const EnergyController controller;
+    const auto controller = create_controller();
 
     const auto measurement =
         create_measurement(
@@ -147,7 +160,7 @@ TEST_CASE("Energy controller treats tiny negative residual as balanced")
 
 TEST_CASE("Energy controller reacts when surplus exceeds balance tolerance")
 {
-    const EnergyController controller;
+    const auto controller = create_controller();
 
     const auto measurement =
         create_measurement(
@@ -160,4 +173,106 @@ TEST_CASE("Energy controller reacts when surplus exceeds balance tolerance")
     REQUIRE(command.source_step_number() == 42);
     REQUIRE(command.action() == ControlAction::ChargeBattery);
     REQUIRE(command.requested_power_kw() == 1.1e-9);
+}
+
+TEST_CASE("Energy controller limits charging to maximum charge power")
+{
+    const auto controller = create_controller();
+
+    const auto measurement =
+        create_measurement(
+            7,
+            1.0,
+            50.0,
+            40.0);
+
+    const auto command = controller.decide(measurement);
+
+    REQUIRE(command.action() == ControlAction::ChargeBattery);
+    REQUIRE(command.requested_power_kw() == 25.0);
+}
+
+TEST_CASE("Energy controller limits discharging to maximum discharge power")
+{
+    const auto controller = create_controller();
+
+    const auto measurement =
+        create_measurement(
+            8,
+            1.0,
+            -50.0,
+            60.0);
+
+    const auto command = controller.decide(measurement);
+
+    REQUIRE(command.action() == ControlAction::DischargeBattery);
+    REQUIRE(command.requested_power_kw() == 30.0);
+}
+
+TEST_CASE("Energy controller stops charging at maximum battery state of charge")
+{
+    const auto controller = create_controller();
+
+    const auto measurement =
+        create_measurement(
+            9,
+            1.0,
+            10.0,
+            90.0);
+
+    const auto command = controller.decide(measurement);
+
+    REQUIRE(command.action() == ControlAction::Idle);
+    REQUIRE(command.requested_power_kw() == 0.0);
+}
+
+TEST_CASE("Energy controller stops discharging at minimum battery state of charge")
+{
+    const auto controller = create_controller();
+
+    const auto measurement =
+        create_measurement(
+            10,
+            1.0,
+            -10.0,
+            10.0);
+
+    const auto command = controller.decide(measurement);
+
+    REQUIRE(command.action() == ControlAction::Idle);
+    REQUIRE(command.requested_power_kw() == 0.0);
+}
+
+TEST_CASE("Energy controller limits charging by remaining battery capacity")
+{
+    const auto controller = create_controller();
+
+    const auto measurement =
+        create_measurement(
+            11,
+            0.5,
+            10.0,
+            85.0);
+
+    const auto command = controller.decide(measurement);
+
+    REQUIRE(command.action() == ControlAction::ChargeBattery);
+    REQUIRE(command.requested_power_kw() == 10.0);
+}
+
+TEST_CASE("Energy controller limits discharging by minimum battery reserve")
+{
+    const auto controller = create_controller();
+
+    const auto measurement =
+        create_measurement(
+            12,
+            0.5,
+            -20.0,
+            20.0);
+
+    const auto command = controller.decide(measurement);
+
+    REQUIRE(command.action() == ControlAction::DischargeBattery);
+    REQUIRE(command.requested_power_kw() == 20.0);
 }

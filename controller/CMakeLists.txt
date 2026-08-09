@@ -14,6 +14,7 @@ add_library(
     STATIC
     src/control_command.cpp
     src/controller.cpp
+    src/controller_limits.cpp
     src/energy_controller.cpp
     src/energy_measurement.cpp
 )
@@ -95,6 +96,7 @@ if(BUILD_TESTING)
     add_executable(
         gridflex_controller_tests
         tests/control_command_tests.cpp
+        tests/controller_limits_tests.cpp
         tests/energy_controller_tests.cpp
         tests/energy_measurement_tests.cpp
     )
