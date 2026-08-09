@@ -9,6 +9,12 @@ project(
 
 include(CTest)
 
+option(
+    GRIDFLEX_BUILD_BENCHMARKS
+    "Build GridFlex controller benchmarks"
+    OFF
+)
+
 add_library(
     gridflex_controller
     STATIC
@@ -79,6 +85,42 @@ else()
             -Wextra
             -Wpedantic
     )
+endif()
+
+if(GRIDFLEX_BUILD_BENCHMARKS)
+    add_executable(
+        gridflex_controller_benchmark
+        benchmarks/energy_controller_benchmark.cpp
+    )
+
+    target_link_libraries(
+        gridflex_controller_benchmark
+        PRIVATE
+            gridflex_controller
+    )
+
+    set_target_properties(
+        gridflex_controller_benchmark
+        PROPERTIES
+            CXX_EXTENSIONS OFF
+    )
+
+    if(MSVC)
+        target_compile_options(
+            gridflex_controller_benchmark
+            PRIVATE
+                /W4
+                /permissive-
+        )
+    else()
+        target_compile_options(
+            gridflex_controller_benchmark
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+    endif()
 endif()
 
 if(BUILD_TESTING)

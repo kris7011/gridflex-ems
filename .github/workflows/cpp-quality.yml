@@ -36,6 +36,7 @@ jobs:
                   -B build
                   -DCMAKE_BUILD_TYPE=Release
                   -DBUILD_TESTING=ON
+                  -DGRIDFLEX_BUILD_BENCHMARKS=ON
 
             - name: Build controller
               run: >
@@ -51,3 +52,6 @@ jobs:
 
             - name: Run controller CLI
               run: ./build/gridflex_controller_cli
+
+            - name: Run controller benchmark smoke test
+              run: ./build/gridflex_controller_benchmark
