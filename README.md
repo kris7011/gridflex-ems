@@ -168,10 +168,18 @@ The current C++ implementation includes:
 * An explicit `ControlCommand` output model
 * Strongly typed `ControlAction` values
 * Defensive validation of command invariants
-* Source-step metadata for future measurement-to-command traceability
-* Catch2 unit tests
+* Source-step metadata for measurement-to-command traceability
+* Deterministic surplus, deficit and balanced-energy control rules
+* Conversion from interval energy in kWh to requested power in kW
+* A floating-point balance tolerance around zero
+* Validated `ControllerLimits` configuration
+* Configurable maximum charge and discharge power
+* Configurable minimum and maximum battery state-of-charge boundaries
+* Charge limiting based on remaining battery capacity
+* Discharge limiting based on minimum battery reserve
+* 35 Catch2 unit tests
 * CTest integration
-* Windows builds using MSVC
+* Windows Debug and Release builds using MSVC
 * Linux builds through GitHub Actions
 * Automated C++ build, test and smoke-test validation
 
@@ -313,9 +321,18 @@ The C++ controller currently supports:
 * Explicit control-command output modelling
 * Strongly typed controller actions
 * Defensive control-command validation
-* Source-step metadata on control commands for future traceability
+* Source-step metadata on generated control commands
+* Deterministic surplus, deficit and balanced-energy decisions
+* Requested-power calculation from interval energy
+* Floating-point tolerance for near-zero energy balances
+* Validated controller operating-limit configuration
+* Maximum battery charge-power limiting
+* Maximum battery discharge-power limiting
+* Minimum battery state-of-charge protection
+* Maximum battery state-of-charge protection
+* SOC-aware charge and discharge limiting
 * Automated unit testing with Catch2
-* Test discovery and execution through CTest
+* 35 discovered C++ tests through CTest
 * Debug and Release builds with MSVC on Windows
 * Automated Linux builds and tests through GitHub Actions
 
@@ -507,8 +524,8 @@ grid models.
 
 The Python strategy currently acts as the simulation and reference behavior.
 
-The C++ controller is being developed separately so that control decisions can
-later be implemented, tested and measured independently.
+The C++ controller is developed separately so that control decisions can be
+implemented, tested and measured independently.
 
 ## Simulation timeline
 
@@ -752,17 +769,17 @@ Requested power: 0 kW
 
 ### Measurement-to-command traceability
 
-Each command stores a source step number intended to identify the measurement
-step associated with the command.
+Each command stores the source step number of the measurement used to create the
+command.
 
-For example, a future controller decision may preserve the relationship:
+For example:
 
 ```text
 EnergyMeasurement
 Step number: 42
       │
       ▼
-C++ controller
+EnergyController
       │
       ▼
 ControlCommand
@@ -771,10 +788,10 @@ Action:          ChargeBattery
 Requested power: 25 kW
 ```
 
-The source-step metadata provides the information needed for future traceability
-between controller input and output.
+The source-step metadata provides explicit traceability between controller input
+and output.
 
-It can later support:
+It can support:
 
 * Debugging
 * Structured logging
@@ -783,12 +800,13 @@ It can later support:
 * Integration testing
 * Cross-component correlation
 
-The actual measurement-to-command mapping will be introduced with the
-controller decision rules.
+The deterministic controller rules preserve the measurement step number when
+creating the resulting command.
 
 ### Controller domain boundary
 
-The controller now has both an explicit input and output model:
+The controller has both an explicit validated input model and an explicit
+validated output model:
 
 ```text
 EnergyMeasurement
@@ -796,22 +814,23 @@ EnergyMeasurement
         │ validated input
         ▼
 ┌──────────────────┐
-│  C++ Controller  │
+│ EnergyController │
 └──────────────────┘
+        │
+        │ deterministic decision
+        ▼
+ControlCommand
         │
         │ validated output
         ▼
-ControlCommand
+Downstream component
 ```
 
-The decision logic between these two contracts is intentionally being developed
-as a separate step.
+This keeps input modelling, output modelling, decision logic and operating
+constraints as separate responsibilities.
 
-This keeps input modelling, output modelling and control behavior from becoming
-one large coupled implementation.
-
-The next controller feature will introduce deterministic rules that transform
-validated `EnergyMeasurement` inputs into validated `ControlCommand` outputs.
+The controller can therefore operate on already valid measurements and produce
+commands that already satisfy command invariants.
 
 ## Scenario configuration
 
@@ -1067,11 +1086,11 @@ into the main branch.
 
 ### Milestone 3: Control logic — In progress
 
-* [ ] Initial energy control rules
+* [x] Initial energy control rules
 * [x] C++ project setup
 * [x] Measurement input
 * [x] Control commands
-* [ ] Safety limits
+* [x] Safety limits
 * [x] Initial controller unit-test infrastructure
 * [ ] Performance benchmarks
 
@@ -1083,9 +1102,9 @@ Measurement input            Complete
 Control commands             Complete
 C++ test infrastructure      Complete
 Linux C++ CI                 Complete
-Initial control rules        Next
-Safety limits                Pending
-Performance benchmarks       Pending
+Initial control rules        Complete
+Safety limits                Complete
+Performance benchmarks       Next
 ```
 
 ### Milestone 4: Hardware abstraction
@@ -1176,6 +1195,19 @@ Current C++ examples include:
 * Rejection of non-finite command power
 * Rejection of idle commands with requested power
 * Rejection of active commands with zero requested power
+* Valid controller operating-limit configuration
+* Rejection of invalid controller operating limits
+* Surplus-to-charge controller decisions
+* Deficit-to-discharge controller decisions
+* Balanced-energy idle decisions
+* Interval-energy to requested-power conversion
+* Floating-point balance tolerance
+* Maximum charge-power limiting
+* Maximum discharge-power limiting
+* Maximum battery state-of-charge protection
+* Minimum battery state-of-charge protection
+* Charge limiting by remaining battery capacity
+* Discharge limiting by minimum battery reserve
 
 ### Scenario tests
 
@@ -1195,7 +1227,7 @@ Later scenarios may include:
 * Battery overheating
 * Safety shutdown
 * Load shedding
-* Control-command behavior
+* Cross-component control-command behavior
 
 ### Integration tests
 
@@ -1241,9 +1273,11 @@ Tests are expected to verify meaningful domain rules, boundaries and edge cases.
 The current C++ baseline includes:
 
 ```text
-15 C++ domain tests passed
+35 C++ tests passed
 8 EnergyMeasurement tests
 7 ControlCommand tests
+7 ControllerLimits tests
+13 EnergyController tests
 Debug build passed with MSVC
 Release build passed with MSVC
 CTest passed
@@ -1252,8 +1286,11 @@ Linux GitHub Actions tests passed
 Controller CLI smoke test passed
 ```
 
-The C++ quality baseline will expand as controller decision rules, safety limits
-and performance measurements are introduced.
+The C++ quality baseline now covers domain contracts, deterministic controller
+decisions and battery operating constraints.
+
+Performance measurements are the next planned addition to the C++ quality
+baseline.
 
 ## Continuous integration
 
@@ -1298,6 +1335,8 @@ The controller is built as a reusable static library:
 ```text
 control_command.cpp
 controller.cpp
+controller_limits.cpp
+energy_controller.cpp
 energy_measurement.cpp
         │
         ▼
@@ -1352,7 +1391,7 @@ Pass / fail result
 
 The same CTest integration is used locally and through GitHub Actions.
 
-The current test executable includes tests for both:
+The current test executable includes tests for:
 
 ```text
 EnergyMeasurement
@@ -1366,6 +1405,19 @@ ControlCommand
         ├── validation
         ├── idle behavior
         └── active-command behavior
+
+ControllerLimits
+        │
+        ├── valid configuration
+        └── invalid-boundary rejection
+
+EnergyController
+        │
+        ├── deterministic decisions
+        ├── requested-power calculation
+        ├── balance tolerance
+        ├── charge and discharge power limits
+        └── state-of-charge protection
 ```
 
 ## Security considerations
@@ -1394,8 +1446,8 @@ industrial equipment or energy infrastructure.
 The project does not implement certified electrical safety functionality,
 protection systems or production-ready control logic.
 
-Safety-related controller behavior introduced later in the project remains
-educational and simulated.
+Safety-related controller behavior in the project remains educational and
+simulated.
 
 ## Out of scope
 
@@ -1592,7 +1644,7 @@ The current expected result is:
 
 ```text
 100% tests passed
-0 tests failed out of 15
+0 tests failed out of 35
 ```
 
 ## Running the C++ controller CLI
@@ -1614,48 +1666,179 @@ The CLI is intentionally small.
 Its purpose at the current stage is to verify that the reusable controller
 library can be linked into and consumed by an executable.
 
-Controller behavior will be added incrementally behind the library interface.
+Additional controller behavior and integration will continue to be developed
+incrementally behind the library interface.
 
 ## Current controller architecture
 
-The controller now has explicit models on both sides of its domain boundary.
+The controller has explicit models on both sides of its domain boundary and a
+validated operating-limit configuration.
 
 ```text
-                    INPUT
-                      │
-                      ▼
-             EnergyMeasurement
-                      │
-                      │ validated
-                      ▼
-             ┌────────────────┐
-             │ C++ Controller │
-             └────────────────┘
-                      │
-                      │ decision
-                      ▼
-              ControlCommand
-                      │
-                      │ validated
-                      ▼
-                    OUTPUT
+                  ControllerLimits
+                        │
+                        │ configuration
+                        ▼
+                  ┌──────────────┐
+                  │              │
+EnergyMeasurement ─────► EnergyController
+                  │              │
+                  └──────┬───────┘
+                         │
+                         │ deterministic decision
+                         ▼
+                  ControlCommand
 ```
 
 `EnergyMeasurement` describes what the controller knows about the current
 energy situation.
 
+`ControllerLimits` describes the operating boundaries the controller must
+respect.
+
 `ControlCommand` describes what the controller is allowed to request.
 
-The decision-making behavior between those two contracts is the next
-development step.
-
-Separating the work this way means that:
+Separating these responsibilities means that:
 
 * Measurement validation is independent of decision logic
 * Command validation is independent of decision logic
+* Operating-limit validation is independent of individual measurements
 * Controller rules can operate on already valid input
+* Controller decisions can be constrained by validated configuration
 * Downstream components can receive already valid commands
 * Each responsibility can be tested independently
+
+## C++ controller decision logic
+
+The C++ `EnergyController` transforms a validated `EnergyMeasurement` into a
+validated `ControlCommand`.
+
+The controller currently implements deterministic battery-first control rules.
+
+At a high level:
+
+```text
+EnergyMeasurement
+        │
+        ▼
+EnergyController
+        │
+        ├── Balanced energy → Idle
+        ├── Energy surplus  → ChargeBattery
+        └── Energy deficit  → DischargeBattery
+        │
+        ▼
+ControlCommand
+```
+
+The controller uses a small floating-point tolerance around zero so that tiny
+numeric residuals do not result in unnecessary battery commands.
+
+For an active command, interval energy is converted to requested power using:
+
+```text
+requested power kW = |net energy kWh| / interval hours
+```
+
+For example:
+
+```text
+Net energy: 10 kWh
+Interval:   0.5 hours
+
+Requested power:
+10 kWh / 0.5 h = 20 kW
+```
+
+### Controller operating limits
+
+The controller receives its operating boundaries through a validated
+`ControllerLimits` object.
+
+The current configuration contains:
+
+* Maximum charge power
+* Maximum discharge power
+* Minimum battery state of charge
+* Maximum battery state of charge
+
+These values are provided to the controller instead of being hardcoded into the
+decision logic.
+
+Conceptually:
+
+```text
+ControllerLimits ─────┐
+                      │
+                      ▼
+                EnergyController
+                      ▲
+                      │
+EnergyMeasurement ────┘
+                      │
+                      ▼
+                ControlCommand
+```
+
+For battery charging, the final command power is the minimum of:
+
+```text
+Requested charge power
+Configured maximum charge power
+Power allowed by remaining battery capacity
+```
+
+For example:
+
+```text
+Requested charge power:        50 kW
+Maximum charge power:          25 kW
+Remaining SOC allows:          10 kW
+
+Final ChargeBattery command:   10 kW
+```
+
+The same principle applies when discharging.
+
+The final discharge power is the minimum of:
+
+```text
+Requested discharge power
+Configured maximum discharge power
+Power available above the minimum battery reserve
+```
+
+If the battery is already at its maximum state of charge, further charging is
+prevented and the controller returns an `Idle` command.
+
+If the battery is already at its minimum state of charge, further discharging
+is prevented in the same way.
+
+This separates controller intent from operating constraints:
+
+```text
+Energy condition
+      │
+      ▼
+Desired controller action
+      │
+      ▼
+Power and SOC constraints
+      │
+      ▼
+Allowed ControlCommand
+```
+
+Grid fallback behavior is intentionally not part of the current controller
+logic yet.
+
+For example, if a deficit remains when the battery reaches its minimum state of
+charge, the controller currently returns `Idle` rather than automatically
+creating an `ImportFromGrid` command.
+
+Grid prioritization and fallback behavior will be introduced separately so that
+battery control, operating constraints and grid strategy remain independently
+testable.
 
 ## Next development step
 
@@ -1664,65 +1847,55 @@ Milestone 3 is in progress.
 Completed controller work:
 
 ```text
-C++ project structure       Complete
-CMake configuration         Complete
-Static controller library   Complete
-Controller CLI              Complete
-Windows MSVC build          Complete
-Linux CI build              Complete
-Measurement input model     Complete
-Measurement validation      Complete
-Control command model       Complete
-Control command validation  Complete
-Catch2 integration          Complete
-CTest integration           Complete
-C++ CI test execution       Complete
+C++ project structure             Complete
+CMake configuration               Complete
+Static controller library         Complete
+Controller CLI                    Complete
+Windows MSVC build                Complete
+Linux CI build                    Complete
+EnergyMeasurement input           Complete
+Measurement validation            Complete
+ControlCommand output              Complete
+Control command validation        Complete
+Initial deterministic rules       Complete
+Controller operating limits       Complete
+Battery SOC protection             Complete
+Catch2 integration                 Complete
+CTest integration                  Complete
+C++ CI test execution              Complete
 ```
 
 The next development step is:
 
 ```text
-Initial deterministic control rules
+Performance benchmarks
 ```
 
-The controller now has both sides of its domain boundary:
+The controller now has a validated input model, explicit output commands,
+deterministic decision rules and configurable battery operating constraints.
 
-```text
-EnergyMeasurement
-        │
-        │ validated input
-        ▼
-C++ Controller
-        │
-        │ deterministic decision
-        ▼
-ControlCommand
-        │
-        │ validated output
-        ▼
-Future hardware abstraction
-```
-
-The next feature will implement the first deterministic mapping between
-measurements and commands.
-
-The initial rules will remain intentionally simple and independently testable
-before safety limits and more advanced energy strategies are introduced.
+The next step is to establish a measurable performance baseline for the C++
+controller before introducing additional control strategies and cross-language
+integration.
 
 The planned sequence is:
 
 ```text
-Initial deterministic control rules
+Initial deterministic control rules    Complete
       │
       ▼
-Safety and operating limits
+Safety and operating limits            Complete
       │
       ▼
-Performance benchmarks
+Performance benchmarks                 Next
       │
       ▼
-Cross-language integration
+Cross-language integration             Later
 ```
+
+Keeping performance measurement as a separate step makes it possible to
+benchmark the existing controller behavior before additional complexity is
+introduced.
 
 The communication mechanism between Python and C++ will be selected separately
 and documented through an Architecture Decision Record.
