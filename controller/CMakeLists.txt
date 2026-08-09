@@ -12,6 +12,7 @@ include(CTest)
 add_library(
     gridflex_controller
     STATIC
+    src/control_command.cpp
     src/controller.cpp
     src/energy_measurement.cpp
 )
@@ -92,6 +93,7 @@ if(BUILD_TESTING)
 
     add_executable(
         gridflex_controller_tests
+        tests/control_command_tests.cpp
         tests/energy_measurement_tests.cpp
     )
 
