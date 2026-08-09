@@ -1,7 +1,8 @@
 # GridFlex EMS
 
 GridFlex EMS is an independent portfolio and learning project that demonstrates
-the architecture and development of a modular Energy Management System.
+the architecture and incremental development of a modular Energy Management
+System.
 
 The system simulates and coordinates energy flows between:
 
@@ -12,13 +13,14 @@ The system simulates and coordinates energy flows between:
 * Electric vehicle chargers in a later milestone
 
 The project focuses on software architecture, reliability, performance,
-automated testing, observability and communication between components written
-in different programming languages.
+automated testing, observability, defensive programming and communication
+between components written in different programming languages.
 
 ## Project purpose
 
 The purpose of GridFlex EMS is to demonstrate how a larger technical software
-solution can be divided into components with clear responsibilities.
+solution can be divided into components with clear responsibilities and explicit
+interfaces.
 
 The project is also used as a structured learning environment for technologies
 commonly used in industrial, embedded and energy-related software development.
@@ -144,15 +146,34 @@ The detailed Python simulation architecture is documented in:
 
 ### C++ controller
 
-The C++ controller will be responsible for:
+The C++ controller is being developed to:
 
-* Receiving energy measurements
-* Evaluating operating conditions
-* Making control decisions
-* Applying safety and operating limits
-* Prioritizing energy sources
-* Demonstrating performance-oriented software development
-* Producing deterministic and testable control behavior
+* Receive validated energy measurements
+* Evaluate operating conditions
+* Make deterministic control decisions
+* Produce explicit control commands
+* Apply safety and operating limits
+* Prioritize energy sources
+* Demonstrate performance-oriented software development
+* Provide independently testable control behavior
+
+The current C++ implementation includes:
+
+* A CMake-based C++20 project
+* A reusable static controller library
+* A small controller CLI executable
+* An explicit `EnergyMeasurement` input model
+* Defensive validation of measurement invariants
+* Immutable-by-interface measurement state
+* An explicit `ControlCommand` output model
+* Strongly typed `ControlAction` values
+* Defensive validation of command invariants
+* Source-step metadata for future measurement-to-command traceability
+* Catch2 unit tests
+* CTest integration
+* Windows builds using MSVC
+* Linux builds through GitHub Actions
+* Automated C++ build, test and smoke-test validation
 
 ### C hardware abstraction layer
 
@@ -171,12 +192,19 @@ The C hardware abstraction layer will be responsible for:
 gridflex-ems/
 ├── .github/
 │   └── workflows/
+│       ├── cpp-quality.yml
+│       └── python-quality.yml
 │
 ├── backend/
 │   └── ASP.NET Core API and application services
 │
 ├── controller/
-│   └── Performance-oriented controller written in C++
+│   ├── include/
+│   │   └── gridflex/
+│   │       └── controller/
+│   ├── src/
+│   ├── tests/
+│   └── CMakeLists.txt
 │
 ├── docker/
 │   └── Dockerfiles and container configuration
@@ -194,7 +222,9 @@ gridflex-ems/
 │   └── Development, build and automation scripts
 │
 ├── simulation/
-│   └── Energy simulation components written in Python
+│   ├── src/
+│   ├── tests/
+│   └── pyproject.toml
 │
 ├── .editorconfig
 ├── .gitignore
@@ -209,11 +239,11 @@ The planned cross-language data flow is:
 ```text
 Python Simulation Engine
           │
-          │ Measurements
+          │ EnergyMeasurement
           ▼
 C++ Energy Controller
           │
-          │ Control commands
+          │ ControlCommand
           ▼
 C Hardware Abstraction Layer
           │
@@ -238,11 +268,20 @@ Possible communication mechanisms include:
 * Standard input and output streams
 * Local sockets
 
+The transport mechanism is intentionally kept separate from the domain
+contracts.
+
+The Python simulation and C++ controller can therefore evolve around explicit
+measurement and command models before a specific communication technology is
+selected.
+
 ## Current status
 
-Milestone 1 and Milestone 2 are implemented.
+Milestone 1 and Milestone 2 are complete.
 
-The current Python simulation supports:
+Milestone 3 is currently in development.
+
+The Python simulation supports:
 
 * Battery charging and discharging
 * Solar energy generation
@@ -263,11 +302,26 @@ The current Python simulation supports:
 * Test coverage
 * GitHub Actions quality checks
 
+The C++ controller currently supports:
+
+* C++20 project configuration through CMake
+* A reusable controller library
+* A CLI executable
+* Explicit energy measurement input
+* Defensive measurement validation
+* Signed grid import/export measurement calculation
+* Explicit control-command output modelling
+* Strongly typed controller actions
+* Defensive control-command validation
+* Source-step metadata on control commands for future traceability
+* Automated unit testing with Catch2
+* Test discovery and execution through CTest
+* Debug and Release builds with MSVC on Windows
+* Automated Linux builds and tests through GitHub Actions
+
 The detailed Python architecture is documented in:
 
 [Python Simulation Architecture](docs/simulation-architecture.md)
-
-The next development milestone introduces the C++ energy controller.
 
 ## Current Python simulation flow
 
@@ -416,7 +470,7 @@ For example:
 
 ## Energy management
 
-The current simplified energy-management strategy is battery-first.
+The current simplified Python energy-management strategy is battery-first.
 
 For surplus energy:
 
@@ -450,6 +504,11 @@ Import from grid
 
 This coordination is implemented separately from the individual battery and
 grid models.
+
+The Python strategy currently acts as the simulation and reference behavior.
+
+The C++ controller is being developed separately so that control decisions can
+later be implemented, tested and measured independently.
 
 ## Simulation timeline
 
@@ -518,6 +577,241 @@ EnergyMeasurement
 
 The exact serialization format and transport mechanism have not yet been
 selected.
+
+## C++ measurement input
+
+The C++ controller contains its own `EnergyMeasurement` domain type.
+
+The C++ type represents the controller-side measurement contract rather than
+depending directly on Python runtime objects.
+
+The current measurement contains:
+
+* Step number
+* Elapsed time
+* Interval duration
+* Generated energy
+* Consumed energy
+* Net energy
+* Battery state of charge
+* Grid import energy
+* Grid export energy
+* Unresolved energy
+
+The measurement validates its invariants during construction.
+
+Examples of rejected input include:
+
+* Step number equal to zero
+* Non-positive time intervals
+* Negative energy values where only non-negative values are valid
+* NaN or infinite numeric values
+* Simultaneous positive grid import and grid export
+
+The model also exposes signed grid energy:
+
+```text
+grid net energy = grid import - grid export
+```
+
+Examples:
+
+```text
+Import 10 kWh, export 0 kWh  → +10 kWh
+Import 0 kWh, export 8 kWh   →  -8 kWh
+```
+
+The C++ measurement state is private and exposed through const accessors.
+
+This means that once a valid measurement has been constructed, callers cannot
+directly mutate its fields into an invalid state.
+
+The measurement model therefore establishes the validated input boundary for
+the controller:
+
+```text
+External measurement data
+          │
+          ▼
+Validated EnergyMeasurement
+          │
+          ▼
+C++ controller
+```
+
+## C++ control commands
+
+The C++ controller contains an explicit `ControlCommand` output model.
+
+A control command represents an action that the controller can request after
+evaluating an energy measurement.
+
+The currently defined actions are:
+
+* Idle
+* Charge battery
+* Discharge battery
+* Import from grid
+* Export to grid
+
+These actions are represented by the strongly typed C++ `ControlAction`
+enumeration.
+
+A control command contains:
+
+* The source measurement step number
+* A strongly typed control action
+* Requested power measured in kilowatts
+
+The command direction and requested power magnitude are represented separately.
+
+For example:
+
+```text
+Action:          ChargeBattery
+Requested power: 25 kW
+```
+
+rather than representing the same decision using signed power such as:
+
+```text
++25 kW
+```
+
+or:
+
+```text
+-25 kW
+```
+
+Keeping action and magnitude separate makes controller intent explicit and
+avoids requiring downstream components to interpret the sign of a numeric
+value.
+
+### Strongly typed control actions
+
+Control actions are represented through a C++ `enum class` instead of strings.
+
+Conceptually:
+
+```text
+ControlAction
+├── Idle
+├── ChargeBattery
+├── DischargeBattery
+├── ImportFromGrid
+└── ExportToGrid
+```
+
+This provides:
+
+* A restricted set of valid actions
+* Compile-time type checking
+* No string-based magic values
+* Clearer controller interfaces
+* Better editor and compiler assistance
+* Safer refactoring
+
+### Control-command validation
+
+The `ControlCommand` model validates its invariants during construction.
+
+Examples of rejected commands include:
+
+* Source step number equal to zero
+* Negative requested power
+* NaN requested power
+* Infinite requested power
+* Idle commands requesting non-zero power
+* Active commands requesting zero power
+
+An idle command is explicitly represented as:
+
+```text
+Action:          Idle
+Requested power: 0 kW
+```
+
+An active command must request power greater than zero.
+
+For example:
+
+```text
+Action:          DischargeBattery
+Requested power: 20 kW
+```
+
+is valid.
+
+The following is not:
+
+```text
+Action:          DischargeBattery
+Requested power: 0 kW
+```
+
+### Measurement-to-command traceability
+
+Each command stores a source step number intended to identify the measurement
+step associated with the command.
+
+For example, a future controller decision may preserve the relationship:
+
+```text
+EnergyMeasurement
+Step number: 42
+      │
+      ▼
+C++ controller
+      │
+      ▼
+ControlCommand
+Source step:     42
+Action:          ChargeBattery
+Requested power: 25 kW
+```
+
+The source-step metadata provides the information needed for future traceability
+between controller input and output.
+
+It can later support:
+
+* Debugging
+* Structured logging
+* Observability
+* Audit trails
+* Integration testing
+* Cross-component correlation
+
+The actual measurement-to-command mapping will be introduced with the
+controller decision rules.
+
+### Controller domain boundary
+
+The controller now has both an explicit input and output model:
+
+```text
+EnergyMeasurement
+        │
+        │ validated input
+        ▼
+┌──────────────────┐
+│  C++ Controller  │
+└──────────────────┘
+        │
+        │ validated output
+        ▼
+ControlCommand
+```
+
+The decision logic between these two contracts is intentionally being developed
+as a separate step.
+
+This keeps input modelling, output modelling and control behavior from becoming
+one large coupled implementation.
+
+The next controller feature will introduce deterministic rules that transform
+validated `EnergyMeasurement` inputs into validated `ControlCommand` outputs.
 
 ## Scenario configuration
 
@@ -623,11 +917,15 @@ entire system to run.
 
 ### Defensive validation
 
-Invalid measurements and impossible states should be rejected explicitly.
+Invalid measurements, invalid commands and impossible states should be rejected
+explicitly.
 
 ### Explicit interfaces
 
 Communication between components should happen through documented interfaces.
+
+Input and output contracts should remain explicit rather than relying on
+implicit assumptions between components.
 
 ### Observability
 
@@ -652,6 +950,13 @@ Decision Records.
 
 Simulation, control logic, hardware access, API communication and presentation
 should not be mixed together.
+
+### Portability
+
+Core components should avoid unnecessary platform-specific assumptions.
+
+The C++ controller is currently validated using MSVC on Windows and through
+Linux-based GitHub Actions.
 
 ## Quality attributes
 
@@ -708,6 +1013,33 @@ evolve over time.
 
 The project uses feature branches and pull requests for incremental changes.
 
+The current development flow is:
+
+```text
+Feature branch
+      │
+      ▼
+Implementation
+      │
+      ▼
+Local build and tests
+      │
+      ▼
+Commit and push
+      │
+      ▼
+Pull request
+      │
+      ▼
+GitHub Actions
+      │
+      ▼
+Squash merge
+      │
+      ▼
+Main
+```
+
 Quality checks run locally and through GitHub Actions before changes are merged
 into the main branch.
 
@@ -733,15 +1065,28 @@ into the main branch.
 * [x] Energy measurements
 * [x] Scenario configuration
 
-### Milestone 3: Control logic
+### Milestone 3: Control logic — In progress
 
 * [ ] Initial energy control rules
-* [ ] C++ project setup
-* [ ] Measurement input
-* [ ] Control commands
+* [x] C++ project setup
+* [x] Measurement input
+* [x] Control commands
 * [ ] Safety limits
-* [ ] Unit tests
+* [x] Initial controller unit-test infrastructure
 * [ ] Performance benchmarks
+
+Current Milestone 3 progress:
+
+```text
+C++ project foundation       Complete
+Measurement input            Complete
+Control commands             Complete
+C++ test infrastructure      Complete
+Linux C++ CI                 Complete
+Initial control rules        Next
+Safety limits                Pending
+Performance benchmarks       Pending
+```
 
 ### Milestone 4: Hardware abstraction
 
@@ -765,7 +1110,7 @@ into the main branch.
 
 * [ ] Dockerfiles
 * [ ] Docker Compose
-* [ ] Linux builds
+* [x] Initial Linux C++ builds through GitHub Actions
 * [ ] Development scripts
 * [ ] Component networking
 * [ ] Environment configuration
@@ -773,8 +1118,9 @@ into the main branch.
 ### Milestone 7: DevOps and Azure
 
 * [x] Initial GitHub Actions quality checks
+* [x] Python automated build and test workflow
+* [x] Initial C++ automated build and test workflow
 * [ ] Automated multi-component builds
-* [ ] Automated multi-component tests
 * [ ] Extended code-quality checks
 * [ ] Container image creation
 * [ ] Azure deployment
@@ -798,7 +1144,7 @@ The project uses several types of testing.
 
 Unit tests verify individual classes and functions in isolation.
 
-Current examples include:
+Current Python examples include:
 
 * Battery charging behavior
 * Battery discharging behavior
@@ -811,6 +1157,25 @@ Current examples include:
 * Measurement validation
 * Timeline behavior
 * Scenario reproducibility
+
+Current C++ examples include:
+
+* Valid energy measurement construction
+* Measurement value preservation
+* Signed grid import calculation
+* Signed grid export calculation
+* Rejection of invalid measurement step numbers
+* Rejection of non-positive measurement intervals
+* Rejection of negative energy values
+* Rejection of non-finite measurement values
+* Rejection of simultaneous grid import and export
+* Valid active control commands
+* Explicit idle control commands
+* Rejection of invalid command source steps
+* Rejection of negative command power
+* Rejection of non-finite command power
+* Rejection of idle commands with requested power
+* Rejection of active commands with zero requested power
 
 ### Scenario tests
 
@@ -850,7 +1215,9 @@ Performance tests will measure:
 * Simulation throughput
 * Time-sensitive decision behavior
 
-## Current Python quality baseline
+## Current quality baseline
+
+### Python
 
 At the completion of Milestone 2:
 
@@ -868,6 +1235,138 @@ A coverage percentage of 100% does not by itself guarantee that every possible
 behavior is correct.
 
 Tests are expected to verify meaningful domain rules, boundaries and edge cases.
+
+### C++
+
+The current C++ baseline includes:
+
+```text
+15 C++ domain tests passed
+8 EnergyMeasurement tests
+7 ControlCommand tests
+Debug build passed with MSVC
+Release build passed with MSVC
+CTest passed
+Linux GitHub Actions build passed
+Linux GitHub Actions tests passed
+Controller CLI smoke test passed
+```
+
+The C++ quality baseline will expand as controller decision rules, safety limits
+and performance measurements are introduced.
+
+## Continuous integration
+
+The repository currently contains separate quality workflows for Python and C++.
+
+### Python Quality
+
+The Python workflow:
+
+* Installs Python 3.12
+* Installs the simulation package and development dependencies
+* Runs Ruff
+* Runs mypy
+* Runs pytest with coverage
+
+### C++ Quality
+
+The C++ workflow:
+
+* Runs on Ubuntu
+* Displays CMake and compiler versions
+* Configures the controller as a Release build
+* Enables C++ testing
+* Builds the controller
+* Runs CTest
+* Executes the controller CLI as a smoke test
+
+This gives the C++ component validation on both:
+
+```text
+Local development:
+Windows + MSVC
+
+Continuous integration:
+Linux + C++ toolchain
+```
+
+## C++ build structure
+
+The controller is built as a reusable static library:
+
+```text
+control_command.cpp
+controller.cpp
+energy_measurement.cpp
+        │
+        ▼
+gridflex_controller
+        │
+        │ static library
+        ▼
+gridflex_controller_cli
+```
+
+Tests also link against the same controller library:
+
+```text
+gridflex_controller
+        │
+        ├──────────────► gridflex_controller_cli
+        │
+        └──────────────► gridflex_controller_tests
+```
+
+This keeps reusable controller logic and domain models separate from executable
+entry points and test infrastructure.
+
+## C++ testing infrastructure
+
+The C++ component uses:
+
+* Catch2 as the unit-test framework
+* CTest as the CMake-integrated test runner
+
+Catch2 provides the test API, including test cases and assertions.
+
+CTest provides test discovery and execution at the build-system level.
+
+The relationship is:
+
+```text
+C++ test source
+      │
+      ▼
+Catch2
+      │
+      ▼
+gridflex_controller_tests
+      │
+      ▼
+CTest
+      │
+      ▼
+Pass / fail result
+```
+
+The same CTest integration is used locally and through GitHub Actions.
+
+The current test executable includes tests for both:
+
+```text
+EnergyMeasurement
+        │
+        ├── validation
+        ├── value preservation
+        └── grid-net calculation
+
+ControlCommand
+        │
+        ├── validation
+        ├── idle behavior
+        └── active-command behavior
+```
 
 ## Security considerations
 
@@ -894,6 +1393,9 @@ industrial equipment or energy infrastructure.
 
 The project does not implement certified electrical safety functionality,
 protection systems or production-ready control logic.
+
+Safety-related controller behavior introduced later in the project remains
+educational and simulated.
 
 ## Out of scope
 
@@ -984,7 +1486,7 @@ Run the demonstration scenario:
 gridflex-simulation
 ```
 
-## Running the automated tests
+## Running the Python tests
 
 From the `simulation` directory:
 
@@ -998,7 +1500,7 @@ Run tests with coverage:
 python -m pytest --cov=gridflex_simulation --cov-report=term-missing
 ```
 
-## Running linting
+## Running Python linting
 
 From the `simulation` directory:
 
@@ -1012,7 +1514,7 @@ Automatically fix supported Ruff findings:
 python -m ruff check . --fix
 ```
 
-## Running static type checking
+## Running Python static type checking
 
 From the `simulation` directory:
 
@@ -1030,37 +1532,197 @@ python -m mypy
 python -m pytest --cov=gridflex_simulation --cov-report=term-missing
 ```
 
-## Next development step
+## Building the C++ controller
 
-Milestone 2 is complete.
-
-The next milestone introduces the C++ energy controller.
-
-The planned direction is:
+The C++ controller is located in:
 
 ```text
-Python Simulation
-        │
-        │ EnergyMeasurement
-        ▼
-C++ Energy Controller
-        │
-        │ Control commands
-        ▼
-C Hardware Abstraction Layer
+controller/
 ```
 
-The first C++ development steps will focus on:
+On Windows, initialize a Visual Studio Developer PowerShell environment before
+building.
 
-- C++ project structure
-- CMake
-- Headers and source files
-- Unit testing
-- Measurement input model
-- Control command model
-- Initial deterministic control rules
-- Safety limits
-- Performance measurement
+Configure the project with tests enabled:
+
+```powershell
+cmake `
+  -S controller `
+  -B controller/build `
+  -DBUILD_TESTING=ON
+```
+
+Build the Debug configuration:
+
+```powershell
+cmake `
+  --build controller/build `
+  --config Debug
+```
+
+Build the Release configuration:
+
+```powershell
+cmake `
+  --build controller/build `
+  --config Release
+```
+
+## Running the C++ tests
+
+Run the Debug tests:
+
+```powershell
+ctest `
+  --test-dir controller/build `
+  -C Debug `
+  --output-on-failure
+```
+
+Run the Release tests:
+
+```powershell
+ctest `
+  --test-dir controller/build `
+  -C Release `
+  --output-on-failure
+```
+
+The current expected result is:
+
+```text
+100% tests passed
+0 tests failed out of 15
+```
+
+## Running the C++ controller CLI
+
+After building the Release configuration on Windows:
+
+```powershell
+& ".\controller\build\Release\gridflex_controller_cli.exe"
+```
+
+Current output:
+
+```text
+GridFlex EMS C++ Controller
+```
+
+The CLI is intentionally small.
+
+Its purpose at the current stage is to verify that the reusable controller
+library can be linked into and consumed by an executable.
+
+Controller behavior will be added incrementally behind the library interface.
+
+## Current controller architecture
+
+The controller now has explicit models on both sides of its domain boundary.
+
+```text
+                    INPUT
+                      │
+                      ▼
+             EnergyMeasurement
+                      │
+                      │ validated
+                      ▼
+             ┌────────────────┐
+             │ C++ Controller │
+             └────────────────┘
+                      │
+                      │ decision
+                      ▼
+              ControlCommand
+                      │
+                      │ validated
+                      ▼
+                    OUTPUT
+```
+
+`EnergyMeasurement` describes what the controller knows about the current
+energy situation.
+
+`ControlCommand` describes what the controller is allowed to request.
+
+The decision-making behavior between those two contracts is the next
+development step.
+
+Separating the work this way means that:
+
+* Measurement validation is independent of decision logic
+* Command validation is independent of decision logic
+* Controller rules can operate on already valid input
+* Downstream components can receive already valid commands
+* Each responsibility can be tested independently
+
+## Next development step
+
+Milestone 3 is in progress.
+
+Completed controller work:
+
+```text
+C++ project structure       Complete
+CMake configuration         Complete
+Static controller library   Complete
+Controller CLI              Complete
+Windows MSVC build          Complete
+Linux CI build              Complete
+Measurement input model     Complete
+Measurement validation      Complete
+Control command model       Complete
+Control command validation  Complete
+Catch2 integration          Complete
+CTest integration           Complete
+C++ CI test execution       Complete
+```
+
+The next development step is:
+
+```text
+Initial deterministic control rules
+```
+
+The controller now has both sides of its domain boundary:
+
+```text
+EnergyMeasurement
+        │
+        │ validated input
+        ▼
+C++ Controller
+        │
+        │ deterministic decision
+        ▼
+ControlCommand
+        │
+        │ validated output
+        ▼
+Future hardware abstraction
+```
+
+The next feature will implement the first deterministic mapping between
+measurements and commands.
+
+The initial rules will remain intentionally simple and independently testable
+before safety limits and more advanced energy strategies are introduced.
+
+The planned sequence is:
+
+```text
+Initial deterministic control rules
+      │
+      ▼
+Safety and operating limits
+      │
+      ▼
+Performance benchmarks
+      │
+      ▼
+Cross-language integration
+```
 
 The communication mechanism between Python and C++ will be selected separately
 and documented through an Architecture Decision Record.
