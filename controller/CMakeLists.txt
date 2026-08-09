@@ -7,10 +7,13 @@ project(
     LANGUAGES CXX
 )
 
+include(CTest)
+
 add_library(
     gridflex_controller
     STATIC
     src/controller.cpp
+    src/energy_measurement.cpp
 )
 
 target_include_directories(
@@ -72,5 +75,64 @@ else()
             -Wall
             -Wextra
             -Wpedantic
+    )
+endif()
+
+if(BUILD_TESTING)
+    include(FetchContent)
+
+    FetchContent_Declare(
+        Catch2
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+        GIT_TAG v3.15.3
+        GIT_SHALLOW TRUE
+    )
+
+    FetchContent_MakeAvailable(Catch2)
+
+    add_executable(
+        gridflex_controller_tests
+        tests/energy_measurement_tests.cpp
+    )
+
+    target_link_libraries(
+        gridflex_controller_tests
+        PRIVATE
+            gridflex_controller
+            Catch2::Catch2WithMain
+    )
+
+    set_target_properties(
+        gridflex_controller_tests
+        PROPERTIES
+            CXX_EXTENSIONS OFF
+    )
+
+    if(MSVC)
+        target_compile_options(
+            gridflex_controller_tests
+            PRIVATE
+                /W4
+                /permissive-
+        )
+    else()
+        target_compile_options(
+            gridflex_controller_tests
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+    endif()
+
+    list(
+        APPEND CMAKE_MODULE_PATH
+        ${catch2_SOURCE_DIR}/extras
+    )
+
+    include(Catch)
+
+    catch_discover_tests(
+        gridflex_controller_tests
     )
 endif()

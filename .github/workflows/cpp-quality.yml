@@ -42,5 +42,17 @@ jobs:
                   --build build
                   --parallel
 
+                        - name: Build controller
+              run: >
+                  cmake
+                  --build build
+                  --parallel
+
+            - name: Run controller tests
+              run: >
+                  ctest
+                  --test-dir build
+                  --output-on-failure
+
             - name: Run controller CLI
               run: ./build/gridflex_controller_cli
