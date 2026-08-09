@@ -168,7 +168,7 @@ The current C++ implementation includes:
 * An explicit `ControlCommand` output model
 * Strongly typed `ControlAction` values
 * Defensive validation of command invariants
-* Traceability between measurements and generated commands
+* Source-step metadata for future measurement-to-command traceability
 * Catch2 unit tests
 * CTest integration
 * Windows builds using MSVC
@@ -313,7 +313,7 @@ The C++ controller currently supports:
 * Explicit control-command output modelling
 * Strongly typed controller actions
 * Defensive control-command validation
-* Traceability from control commands to source measurement steps
+* Source-step metadata on control commands for future traceability
 * Automated unit testing with Catch2
 * Test discovery and execution through CTest
 * Debug and Release builds with MSVC on Windows
@@ -587,7 +587,7 @@ depending directly on Python runtime objects.
 
 The current measurement contains:
 
-* Source step number
+* Step number
 * Elapsed time
 * Interval duration
 * Generated energy
@@ -752,9 +752,10 @@ Requested power: 0 kW
 
 ### Measurement-to-command traceability
 
-Each command stores the step number of the measurement that caused the command.
+Each command stores a source step number intended to identify the measurement
+step associated with the command.
 
-For example:
+For example, a future controller decision may preserve the relationship:
 
 ```text
 EnergyMeasurement
@@ -770,9 +771,10 @@ Action:          ChargeBattery
 Requested power: 25 kW
 ```
 
-This establishes traceability between controller input and output.
+The source-step metadata provides the information needed for future traceability
+between controller input and output.
 
-The source step can later support:
+It can later support:
 
 * Debugging
 * Structured logging
@@ -780,6 +782,9 @@ The source step can later support:
 * Audit trails
 * Integration testing
 * Cross-component correlation
+
+The actual measurement-to-command mapping will be introduced with the
+controller decision rules.
 
 ### Controller domain boundary
 
