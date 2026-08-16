@@ -7,10 +7,31 @@ project(
     LANGUAGES C
 )
 
+include(CTest)
+
+function(gridflex_enable_strict_c_warnings target)
+    if(MSVC)
+        target_compile_options(
+            ${target}
+            PRIVATE
+                /W4
+        )
+    else()
+        target_compile_options(
+            ${target}
+            PRIVATE
+                -Wall
+                -Wextra
+                -Wpedantic
+        )
+    endif()
+endfunction()
+
 add_library(
     gridflex_hardware
     STATIC
     src/hardware.c
+    src/sensor.c
 )
 
 target_include_directories(
@@ -25,6 +46,16 @@ target_compile_features(
         c_std_17
 )
 
+set_target_properties(
+    gridflex_hardware
+    PROPERTIES
+        C_EXTENSIONS OFF
+)
+
+gridflex_enable_strict_c_warnings(
+    gridflex_hardware
+)
+
 add_executable(
     gridflex_hardware_cli
     src/main.c
@@ -37,38 +68,39 @@ target_link_libraries(
 )
 
 set_target_properties(
-    gridflex_hardware
     gridflex_hardware_cli
     PROPERTIES
         C_EXTENSIONS OFF
 )
 
-if(MSVC)
-    target_compile_options(
-        gridflex_hardware
-        PRIVATE
-            /W4
+gridflex_enable_strict_c_warnings(
+    gridflex_hardware_cli
+)
+
+if(BUILD_TESTING)
+    add_executable(
+        gridflex_hardware_tests
+        tests/sensor_tests.c
     )
 
-    target_compile_options(
-        gridflex_hardware_cli
+    target_link_libraries(
+        gridflex_hardware_tests
         PRIVATE
-            /W4
-    )
-else()
-    target_compile_options(
-        gridflex_hardware
-        PRIVATE
-            -Wall
-            -Wextra
-            -Wpedantic
+            gridflex_hardware
     )
 
-    target_compile_options(
-        gridflex_hardware_cli
-        PRIVATE
-            -Wall
-            -Wextra
-            -Wpedantic
+    set_target_properties(
+        gridflex_hardware_tests
+        PROPERTIES
+            C_EXTENSIONS OFF
+    )
+
+    gridflex_enable_strict_c_warnings(
+        gridflex_hardware_tests
+    )
+
+    add_test(
+        NAME gridflex_hardware_sensor_tests
+        COMMAND gridflex_hardware_tests
     )
 endif()
