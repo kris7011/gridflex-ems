@@ -1,0 +1,46 @@
+name: C Quality
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+
+jobs:
+    build:
+        name: Configure, build and smoke test
+        runs-on: ubuntu-latest
+
+        defaults:
+            run:
+                working-directory: hardware
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v6
+
+            - name: Show tool versions
+              run: |
+                  cmake --version
+                  cc --version
+
+            - name: Configure hardware
+              run: >
+                  cmake
+                  -S .
+                  -B build
+                  -DCMAKE_BUILD_TYPE=Release
+
+            - name: Build hardware
+              run: >
+                  cmake
+                  --build build
+                  --parallel
+
+            - name: Run hardware CLI
+              run: ./build/gridflex_hardware_cli
