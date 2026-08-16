@@ -13,7 +13,7 @@ permissions:
 
 jobs:
     build:
-        name: Configure, build and smoke test
+        name: Configure, build, test and smoke test
         runs-on: ubuntu-latest
 
         defaults:
@@ -35,12 +35,19 @@ jobs:
                   -S .
                   -B build
                   -DCMAKE_BUILD_TYPE=Release
+                  -DBUILD_TESTING=ON
 
             - name: Build hardware
               run: >
                   cmake
                   --build build
                   --parallel
+
+            - name: Run hardware tests
+              run: >
+                  ctest
+                  --test-dir build
+                  --output-on-failure
 
             - name: Run hardware CLI
               run: ./build/gridflex_hardware_cli
