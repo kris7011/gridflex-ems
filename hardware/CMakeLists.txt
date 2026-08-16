@@ -32,6 +32,7 @@ add_library(
     STATIC
     src/hardware.c
     src/sensor.c
+    src/actuator.c
 )
 
 target_include_directories(
@@ -79,28 +80,54 @@ gridflex_enable_strict_c_warnings(
 
 if(BUILD_TESTING)
     add_executable(
-        gridflex_hardware_tests
+        gridflex_sensor_tests
         tests/sensor_tests.c
     )
 
     target_link_libraries(
-        gridflex_hardware_tests
+        gridflex_sensor_tests
         PRIVATE
             gridflex_hardware
     )
 
     set_target_properties(
-        gridflex_hardware_tests
+        gridflex_sensor_tests
         PROPERTIES
             C_EXTENSIONS OFF
     )
 
     gridflex_enable_strict_c_warnings(
-        gridflex_hardware_tests
+        gridflex_sensor_tests
     )
 
     add_test(
         NAME gridflex_hardware_sensor_tests
-        COMMAND gridflex_hardware_tests
+        COMMAND gridflex_sensor_tests
+    )
+
+    add_executable(
+        gridflex_actuator_tests
+        tests/actuator_tests.c
+    )
+
+    target_link_libraries(
+        gridflex_actuator_tests
+        PRIVATE
+            gridflex_hardware
+    )
+
+    set_target_properties(
+        gridflex_actuator_tests
+        PROPERTIES
+            C_EXTENSIONS OFF
+    )
+
+    gridflex_enable_strict_c_warnings(
+        gridflex_actuator_tests
+    )
+
+    add_test(
+        NAME gridflex_hardware_actuator_tests
+        COMMAND gridflex_actuator_tests
     )
 endif()
