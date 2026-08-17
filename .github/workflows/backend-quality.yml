@@ -1,0 +1,53 @@
+name: Backend Quality
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+
+jobs:
+    quality:
+        name: Restore, format, build and test
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v6
+
+            - name: Set up .NET
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+
+            - name: Show .NET version
+              run: dotnet --info
+
+            - name: Restore backend
+              run: dotnet restore backend/GridFlex.slnx
+
+            - name: Verify formatting
+              run: >-
+                  dotnet format
+                  backend/GridFlex.slnx
+                  --verify-no-changes
+                  --no-restore
+
+            - name: Build backend
+              run: >-
+                  dotnet build
+                  backend/GridFlex.slnx
+                  --configuration Release
+                  --no-restore
+
+            - name: Test backend
+              run: >-
+                  dotnet test
+                  backend/GridFlex.slnx
+                  --configuration Release
+                  --no-build
