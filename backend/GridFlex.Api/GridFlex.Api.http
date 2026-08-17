@@ -1,6 +1,12 @@
 @GridFlex.Api_HostAddress = https://localhost:7204
 
+### System status
+
 GET {{GridFlex.Api_HostAddress}}/api/system/status
 Accept: application/json
+
+### Liveness
+
+GET {{GridFlex.Api_HostAddress}}/health/live
 
 ###

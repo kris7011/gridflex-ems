@@ -4,6 +4,7 @@ using GridFlex.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddSingleton<
   ISystemStatusService,
@@ -18,6 +19,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.MapHealthEndpoints();
 app.MapSystemStatusEndpoints();
 
 app.Run();
