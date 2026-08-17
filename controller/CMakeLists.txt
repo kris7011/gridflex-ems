@@ -4,7 +4,7 @@ project(
     GridFlexController
     VERSION 0.1.0
     DESCRIPTION "C++ energy controller for GridFlex EMS"
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 include(CTest)
@@ -15,6 +15,11 @@ option(
     OFF
 )
 
+add_subdirectory(
+    ${CMAKE_CURRENT_SOURCE_DIR}/../hardware
+    ${CMAKE_CURRENT_BINARY_DIR}/hardware
+)
+
 add_library(
     gridflex_controller
     STATIC
@@ -23,6 +28,7 @@ add_library(
     src/controller_limits.cpp
     src/energy_controller.cpp
     src/energy_measurement.cpp
+    src/hardware_command_executor.cpp
 )
 
 target_include_directories(
@@ -35,6 +41,12 @@ target_compile_features(
     gridflex_controller
     PUBLIC
         cxx_std_20
+)
+
+target_link_libraries(
+    gridflex_controller
+    PUBLIC
+        gridflex_hardware
 )
 
 add_executable(
@@ -141,6 +153,7 @@ if(BUILD_TESTING)
         tests/controller_limits_tests.cpp
         tests/energy_controller_tests.cpp
         tests/energy_measurement_tests.cpp
+        tests/hardware_command_executor_tests.cpp
     )
 
     target_link_libraries(
