@@ -1,6 +1,6 @@
-@GridFlex.Api_HostAddress = http://localhost:5167
+@GridFlex.Api_HostAddress = https://localhost:7204
 
-GET {{GridFlex.Api_HostAddress}}/weatherforecast/
+GET {{GridFlex.Api_HostAddress}}/api/system/status
 Accept: application/json
 
 ###
