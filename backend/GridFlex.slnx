@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="GridFlex.Api.Tests/GridFlex.Api.Tests.csproj" />
+  <Project Path="GridFlex.Api/GridFlex.Api.csproj" />
+</Solution>
