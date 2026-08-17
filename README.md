@@ -25,12 +25,15 @@ interfaces.
 The project is also used as a structured learning environment for technologies
 commonly used in industrial, embedded and energy-related software development.
 
-The system will gradually include components written in:
+The currently implemented core components use:
 
-* C#
 * Python
 * C++
 * C
+
+A future backend milestone will introduce:
+
+* C# and ASP.NET Core
 
 The project is developed incrementally so that each architectural decision,
 implementation step and technology choice can be explained and justified.
@@ -114,7 +117,7 @@ Examples of system decisions include:
 
 ### ASP.NET Core API
 
-The ASP.NET Core API will be responsible for:
+The ASP.NET Core API is planned to be responsible for:
 
 * Exposing system status through REST endpoints
 * Receiving commands from users or external systems
@@ -122,7 +125,10 @@ The ASP.NET Core API will be responsible for:
 * Exposing health checks
 * Providing structured logging
 * Exposing metrics later in the project
+* Integrating with simulation and controller components
 * Supporting authentication and authorization in a later milestone
+
+The ASP.NET Core backend is introduced in Milestone 5.
 
 ### Python simulation engine
 
@@ -138,7 +144,7 @@ The Python simulation engine is responsible for:
 * Creating reproducible operating scenarios
 * Producing immutable measurement data
 * Supporting experiments and energy analysis
-* Testing energy behavior before controller integration
+* Testing energy behavior before and alongside controller development
 
 The detailed Python simulation architecture is documented in:
 
@@ -146,16 +152,18 @@ The detailed Python simulation architecture is documented in:
 
 ### C++ controller
 
-The C++ controller is being developed to:
+The C++ controller is responsible for:
 
-* Receive validated energy measurements
-* Evaluate operating conditions
-* Make deterministic control decisions
-* Produce explicit control commands
-* Apply safety and operating limits
-* Prioritize energy sources in later controller strategies
-* Demonstrate performance-oriented software development
-* Provide independently testable control behavior
+* Receiving validated energy measurements
+* Evaluating operating conditions
+* Making deterministic control decisions
+* Producing explicit control commands
+* Applying safety and operating limits
+* Keeping decision logic separate from hardware I/O
+* Translating controller output into hardware-facing commands through a dedicated
+  execution boundary
+* Demonstrating performance-oriented software development
+* Providing independently testable control behavior
 
 The current C++ implementation includes:
 
@@ -177,13 +185,22 @@ The current C++ implementation includes:
 * Configurable minimum and maximum battery state-of-charge boundaries
 * Charge limiting based on remaining battery capacity
 * Discharge limiting based on minimum battery reserve
+* A dedicated `HardwareCommandExecutor`
+* A `HardwareExecutionResult` containing separate battery and grid results
+* Explicit translation from C++ control actions to C actuator actions
+* Explicit idle commands for non-target actuators
+* Normalized C hardware errors exposed back to the C++ layer
+* Integration with the C hardware static library
+* A mixed C/C++ CMake build
+* End-to-end testing from `EnergyMeasurement` through the C++ controller into
+  simulated C hardware
 * A dedicated controller microbenchmark executable
 * Optional benchmark builds through CMake
 * Release-oriented benchmark measurements
 * Surplus, deficit and balanced-decision benchmark cases
 * Benchmark result consumption through a checksum
 * Linux benchmark smoke-test execution through GitHub Actions
-* 35 Catch2 unit tests
+* Catch2 unit and integration tests
 * CTest integration
 * Windows Debug and Release builds using MSVC
 * Linux builds through GitHub Actions
@@ -191,14 +208,45 @@ The current C++ implementation includes:
 
 ### C hardware abstraction layer
 
-The C hardware abstraction layer will be responsible for:
+The C hardware abstraction layer is responsible for:
 
 * Representing low-level sensors
 * Representing actuators
-* Providing driver-like interfaces
+* Providing driver-like callback interfaces
 * Hiding hardware-specific details from the controller
+* Providing explicit status codes instead of exceptions
 * Simulating communication with physical equipment
-* Introducing embedded software concepts
+* Supporting failure injection for testing
+* Normalizing hardware errors
+* Providing a C-compatible boundary that can be consumed from C++
+* Introducing embedded and low-level software concepts
+
+The current C implementation includes:
+
+* A C17 CMake project
+* A reusable `gridflex_hardware` static library
+* A small hardware CLI executable
+* A generic sensor interface
+* A generic actuator interface
+* Function-pointer-based driver callbacks
+* Opaque `void *context` device state
+* Explicit sensor status codes
+* Explicit actuator status codes
+* Explicit actuator action compatibility rules
+* Defensive validation before callbacks are invoked
+* Simulated sensor devices
+* Simulated actuator devices
+* Configurable simulated read failures
+* Configurable simulated apply failures
+* Sensor read-attempt tracking
+* Actuator apply-attempt tracking
+* Last successful actuator command tracking
+* A normalized `GridFlexHardwareError` model
+* Mapping from sensor and actuator statuses into common hardware errors
+* C++ compatible public C headers using `extern "C"`
+* Native C tests registered through CTest
+* Windows builds using MSVC
+* Linux build and test validation through GitHub Actions
 
 ## Repository structure
 
@@ -206,6 +254,7 @@ The C hardware abstraction layer will be responsible for:
 gridflex-ems/
 ├── .github/
 │   └── workflows/
+│       ├── c-quality.yml
 │       ├── cpp-quality.yml
 │       └── python-quality.yml
 │
@@ -218,8 +267,26 @@ gridflex-ems/
 │   ├── include/
 │   │   └── gridflex/
 │   │       └── controller/
+│   │           ├── control_command.hpp
+│   │           ├── controller.hpp
+│   │           ├── controller_limits.hpp
+│   │           ├── energy_controller.hpp
+│   │           ├── energy_measurement.hpp
+│   │           └── hardware_command_executor.hpp
 │   ├── src/
+│   │   ├── control_command.cpp
+│   │   ├── controller.cpp
+│   │   ├── controller_limits.cpp
+│   │   ├── energy_controller.cpp
+│   │   ├── energy_measurement.cpp
+│   │   ├── hardware_command_executor.cpp
+│   │   └── main.cpp
 │   ├── tests/
+│   │   ├── control_command_tests.cpp
+│   │   ├── controller_limits_tests.cpp
+│   │   ├── energy_controller_tests.cpp
+│   │   ├── energy_measurement_tests.cpp
+│   │   └── hardware_command_executor_tests.cpp
 │   └── CMakeLists.txt
 │
 ├── docker/
@@ -232,7 +299,30 @@ gridflex-ems/
 │   └── simulation-architecture.md
 │
 ├── hardware/
-│   └── Hardware abstraction components written in C
+│   ├── include/
+│   │   └── gridflex/
+│   │       └── hardware/
+│   │           ├── actuator.h
+│   │           ├── error.h
+│   │           ├── hardware.h
+│   │           ├── sensor.h
+│   │           ├── simulated_actuator.h
+│   │           └── simulated_sensor.h
+│   ├── src/
+│   │   ├── actuator.c
+│   │   ├── error.c
+│   │   ├── hardware.c
+│   │   ├── main.c
+│   │   ├── sensor.c
+│   │   ├── simulated_actuator.c
+│   │   └── simulated_sensor.c
+│   ├── tests/
+│   │   ├── actuator_tests.c
+│   │   ├── error_tests.c
+│   │   ├── sensor_tests.c
+│   │   ├── simulated_actuator_tests.c
+│   │   └── simulated_sensor_tests.c
+│   └── CMakeLists.txt
 │
 ├── scripts/
 │   └── Development, build and automation scripts
@@ -242,15 +332,16 @@ gridflex-ems/
 │   ├── tests/
 │   └── pyproject.toml
 │
+├── .clang-format
 ├── .editorconfig
 ├── .gitignore
 ├── LICENSE
 └── README.md
 ```
 
-## Initial data flow
+## Cross-language data flow
 
-The planned cross-language data flow is:
+The planned system-wide data flow is:
 
 ```text
 Python Simulation Engine
@@ -272,8 +363,34 @@ ASP.NET Core API
 Frontend Dashboard
 ```
 
-The exact communication mechanism between the components will be selected and
-documented in a later Architecture Decision Record.
+The controller-to-hardware part of this flow is now implemented directly.
+
+The current native integration path is:
+
+```text
+EnergyMeasurement
+        │
+        ▼
+EnergyController::decide()
+        │
+        ▼
+ControlCommand
+        │
+        ▼
+HardwareCommandExecutor::execute()
+        │
+        ▼
+GridFlexActuator
+        │
+        ▼
+C hardware callback
+        │
+        ▼
+Simulated C device
+```
+
+The communication mechanism between the larger Python, native C/C++ and future
+C# components has not yet been selected.
 
 Possible communication mechanisms include:
 
@@ -287,15 +404,15 @@ Possible communication mechanisms include:
 The transport mechanism is intentionally kept separate from the domain
 contracts.
 
-The Python simulation and C++ controller can therefore evolve around explicit
-measurement and command models before a specific communication technology is
-selected.
+This allows the simulation, controller and hardware layers to evolve around
+explicit measurement, command and device contracts before a system-wide
+communication technology is selected.
 
 ## Current status
 
-Milestone 1, Milestone 2 and Milestone 3 are complete.
+Milestone 1, Milestone 2, Milestone 3 and Milestone 4 are complete.
 
-Milestone 4 is the next planned development milestone.
+Milestone 5 is the next planned development milestone.
 
 The Python simulation supports:
 
@@ -339,15 +456,58 @@ The C++ controller currently supports:
 * Minimum battery state-of-charge protection
 * Maximum battery state-of-charge protection
 * SOC-aware charge and discharge limiting
+* Explicit controller-to-hardware execution
+* Complete-state battery and grid actuator commands
+* Separate battery and grid hardware execution results
+* Common hardware-error normalization
+* Defensive rejection of unknown controller actions before hardware access
+* Integration with simulated C actuator devices
+* End-to-end controller-to-hardware integration testing
 * A dedicated performance benchmark executable
 * Release-oriented controller microbenchmarks
 * Surplus, deficit and balanced-decision benchmark cases
 * Benchmark timing through `std::chrono::steady_clock`
 * Benchmark warmup and repeated measured iterations
-* Automated unit testing with Catch2
-* 35 discovered C++ tests through CTest
+* Automated unit and integration testing with Catch2
+* 47 discovered Catch2 test cases
+* 148 Catch2 assertions in the current local validation baseline
 * Debug and Release builds with MSVC on Windows
 * Automated Linux builds, tests and benchmark smoke testing through GitHub Actions
+
+The C hardware layer currently supports:
+
+* C17 project configuration through CMake
+* A reusable C static library
+* A hardware CLI executable
+* Generic sensor interfaces
+* Generic actuator interfaces
+* Sensor driver callbacks
+* Actuator driver callbacks
+* Opaque callback contexts
+* Explicit sensor types
+* Explicit actuator types
+* Explicit actuator actions
+* Defensive interface validation
+* Simulated sensors
+* Simulated actuators
+* Failure injection
+* Hardware-operation counters
+* Last-successful-command state
+* Normalized sensor and actuator hardware errors
+* C++ compatible public headers
+* Native C test executables
+* CTest integration
+* Automated Linux C quality validation through GitHub Actions
+
+The complete mixed-language C/C++ build currently validates:
+
+```text
+47 Catch2 test cases
+5 native C CTest targets
+52 total tests through the integrated controller CTest build
+148 Catch2 assertions
+0 failing tests
+```
 
 The detailed Python architecture is documented in:
 
@@ -833,10 +993,6 @@ EnergyMeasurement
         │ deterministic decision
         ▼
 ControlCommand
-        │
-        │ validated output
-        ▼
-Downstream component
 ```
 
 This keeps input modelling, output modelling, decision logic and operating
@@ -844,6 +1000,401 @@ constraints as separate responsibilities.
 
 The controller can therefore operate on already valid measurements and produce
 commands that already satisfy command invariants.
+
+## Controller-to-hardware integration
+
+The C++ controller does not directly perform hardware I/O from
+`EnergyController::decide()`.
+
+Instead, hardware execution is separated into a dedicated
+`HardwareCommandExecutor`.
+
+The resulting architecture is:
+
+```text
+EnergyMeasurement
+        │
+        ▼
+EnergyController
+        │
+        │ deterministic decision
+        ▼
+ControlCommand
+        │
+        ▼
+HardwareCommandExecutor
+        │
+        ├── Battery actuator command
+        └── Grid actuator command
+        │
+        ▼
+C Hardware Abstraction Layer
+```
+
+This separation is intentional.
+
+`EnergyController` answers:
+
+```text
+What should the energy system do?
+```
+
+`HardwareCommandExecutor` answers:
+
+```text
+How should that decision be represented at the hardware boundary?
+```
+
+This prevents hardware side effects from becoming mixed into the controller's
+decision logic.
+
+### Complete-state actuator commands
+
+Each controller command is translated into an explicit desired state for both
+the battery and grid actuators.
+
+The current mapping is:
+
+```text
+ControlAction          Battery actuator       Grid actuator
+---------------------------------------------------------------
+Idle                   Idle                   Idle
+ChargeBattery          Charge                 Idle
+DischargeBattery       Discharge              Idle
+ImportFromGrid         Idle                   Import
+ExportToGrid           Idle                   Export
+```
+
+For example:
+
+```text
+ControlCommand
+Action: ChargeBattery
+Power:  20 kW
+
+        │
+        ▼
+
+Battery:
+Charge 20 kW
+
+Grid:
+Idle 0 kW
+```
+
+If the next command changes to grid import:
+
+```text
+ControlCommand
+Action: ImportFromGrid
+Power:  15 kW
+
+        │
+        ▼
+
+Battery:
+Idle 0 kW
+
+Grid:
+Import 15 kW
+```
+
+The non-target actuator is therefore explicitly idled.
+
+This avoids leaving an earlier actuator state active only because a later
+controller decision targets another device.
+
+### Hardware execution results
+
+Hardware execution does not collapse all device behavior into a single boolean
+result.
+
+`HardwareExecutionResult` preserves separate normalized results for:
+
+* Battery execution
+* Grid execution
+
+Conceptually:
+
+```text
+HardwareExecutionResult
+        │
+        ├── battery_error
+        └── grid_error
+```
+
+This makes partial failures visible.
+
+For example:
+
+```text
+Battery command: Failed
+Grid command:    Succeeded
+```
+
+can be distinguished from:
+
+```text
+Battery command: Succeeded
+Grid command:    Failed
+```
+
+The executor uses the common C hardware error model instead of defining a second
+unrelated error representation in C++.
+
+### Defensive action validation
+
+The executor translates both hardware commands before hardware access begins.
+
+If an unsupported or unknown C++ `ControlAction` reaches the executor, it is
+rejected before either actuator callback is invoked.
+
+This creates a defensive boundary between controller-domain output and hardware
+side effects.
+
+### Execution policy
+
+The current educational implementation attempts both actuator commands and
+retains both results.
+
+This provides visibility into partial failures and makes behavior explicit
+during simulation and testing.
+
+For future physical hardware, fail-safe ordering and command sequencing would
+need to be treated as an explicit safety policy.
+
+The current project does not claim that the existing execution ordering is
+appropriate for real electrical equipment.
+
+## C hardware sensor interface
+
+The generic C sensor abstraction uses:
+
+* A sensor type
+* A read callback
+* An opaque callback context
+* Explicit status codes
+* An output parameter for the measured value
+
+Conceptually:
+
+```text
+GridFlexSensor
+      │
+      ├── type
+      ├── read callback
+      └── context
+```
+
+The generic sensor layer validates the interface before calling a concrete
+device implementation.
+
+Examples of sensor statuses include:
+
+```text
+OK
+INVALID_ARGUMENT
+NOT_CONFIGURED
+READ_FAILED
+```
+
+The callback/context design makes the generic interface independent of the
+concrete sensor implementation.
+
+## C hardware actuator interface
+
+The generic actuator abstraction uses:
+
+* An actuator type
+* An apply callback
+* An opaque callback context
+* An explicit actuator command
+* Explicit status codes
+
+Conceptually:
+
+```text
+GridFlexActuator
+      │
+      ├── type
+      ├── apply callback
+      └── context
+```
+
+A hardware command contains:
+
+```text
+action
+requested power
+```
+
+Action direction is explicit.
+
+For example:
+
+```text
+Action: CHARGE
+Power:  20 kW
+```
+
+rather than encoding direction through positive or negative numeric values.
+
+Current actuator types include:
+
+```text
+Battery
+Grid connection
+EV charger
+```
+
+Current actuator actions include:
+
+```text
+Idle
+Charge
+Discharge
+Import
+Export
+```
+
+The generic actuator layer validates:
+
+* Non-null arguments
+* Actuator type
+* Action type
+* Actuator/action compatibility
+* Requested power
+* Callback configuration
+
+before invoking the concrete device callback.
+
+## Simulated C hardware
+
+The C hardware layer includes simulated implementations of both sensors and
+actuators.
+
+### Simulated sensors
+
+A simulated sensor stores:
+
+* Sensor type
+* Current simulated value
+* Failure-injection state
+* Read-attempt count
+
+It can be adapted into the generic `GridFlexSensor` interface.
+
+Conceptually:
+
+```text
+GridFlexSimulatedSensor
+        │
+        │ adapted as
+        ▼
+GridFlexSensor
+        │
+        ▼
+generic sensor API
+```
+
+The same generic sensor API can therefore work with a simulated device or a
+future concrete hardware driver.
+
+### Simulated actuators
+
+A simulated actuator stores:
+
+* Actuator type
+* Failure-injection state
+* Apply-attempt count
+* Last successful action
+* Last successful requested power
+
+It can be adapted into the generic `GridFlexActuator` interface.
+
+Conceptually:
+
+```text
+GridFlexSimulatedActuator
+        │
+        │ adapted as
+        ▼
+GridFlexActuator
+        │
+        ▼
+generic actuator API
+```
+
+Failed simulated apply operations count as attempts but do not overwrite the
+last successful actuator state.
+
+This makes simulated failures observable and testable.
+
+## C hardware error handling
+
+The hardware layer contains a common normalized error representation:
+
+```text
+GridFlexHardwareError
+```
+
+The error identifies:
+
+* Error source
+* Hardware operation
+* Normalized error code
+* Sensor type when relevant
+* Actuator type when relevant
+
+Current error sources include:
+
+```text
+Sensor
+Actuator
+```
+
+Current operations include:
+
+```text
+Read
+Apply
+```
+
+Normalized error codes include:
+
+```text
+NONE
+INVALID_ARGUMENT
+NOT_CONFIGURED
+UNSUPPORTED_OPERATION
+OPERATION_FAILED
+UNKNOWN_STATUS
+```
+
+This separates low-level API-specific status values from a common error model.
+
+For example:
+
+```text
+Sensor READ_FAILED
+        │
+        ▼
+Hardware error
+OPERATION_FAILED
+```
+
+and:
+
+```text
+Actuator UNSUPPORTED_ACTION
+        │
+        ▼
+Hardware error
+UNSUPPORTED_OPERATION
+```
+
+The C++ `HardwareCommandExecutor` reuses this error model when reporting actuator
+execution results.
 
 ## Scenario configuration
 
@@ -983,12 +1534,28 @@ Decision Records.
 Simulation, control logic, hardware access, API communication and presentation
 should not be mixed together.
 
+The current controller/hardware integration demonstrates this directly:
+
+```text
+Decision logic
+EnergyController
+      │
+      ▼
+ControlCommand
+
+Hardware execution
+HardwareCommandExecutor
+      │
+      ▼
+C hardware abstraction
+```
+
 ### Portability
 
 Core components should avoid unnecessary platform-specific assumptions.
 
-The C++ controller is currently validated using MSVC on Windows and through
-Linux-based GitHub Actions.
+The C and C++ components are currently validated using MSVC on Windows and
+through Linux-based GitHub Actions.
 
 ## Quality attributes
 
@@ -1077,7 +1644,7 @@ into the main branch.
 
 ## Planned milestones
 
-### Milestone 1: Project foundation — Complete
+### Milestone 1: Project foundation - Complete
 
 * [x] Repository structure
 * [x] Documentation
@@ -1088,7 +1655,7 @@ into the main branch.
 * [x] Static type checking
 * [x] Continuous integration
 
-### Milestone 2: Energy simulation — Complete
+### Milestone 2: Energy simulation - Complete
 
 * [x] Solar generation model
 * [x] Building consumption model
@@ -1097,7 +1664,7 @@ into the main branch.
 * [x] Energy measurements
 * [x] Scenario configuration
 
-### Milestone 3: Control logic — Complete
+### Milestone 3: Control logic - Complete
 
 * [x] Initial energy control rules
 * [x] C++ project setup
@@ -1120,16 +1687,31 @@ Safety limits                Complete
 Performance benchmarks       Complete
 ```
 
-### Milestone 4: Hardware abstraction — Next
+### Milestone 4: Hardware abstraction - Complete
 
-* [ ] C project setup
-* [ ] Sensor interfaces
-* [ ] Actuator interfaces
-* [ ] Simulated hardware devices
-* [ ] Error handling
-* [ ] Controller integration
+* [x] C project setup
+* [x] Sensor interfaces
+* [x] Actuator interfaces
+* [x] Simulated hardware devices
+* [x] Error handling
+* [x] Controller integration
 
-### Milestone 5: Backend API
+Milestone 4 completion status:
+
+```text
+C project foundation            Complete
+Sensor interface                Complete
+Actuator interface              Complete
+Simulated sensor devices        Complete
+Simulated actuator devices      Complete
+Hardware error handling         Complete
+Controller integration          Complete
+Mixed C/C++ build               Complete
+C/C++ integration testing       Complete
+C hardware CI                   Complete
+```
+
+### Milestone 5: Backend API - Next
 
 * [ ] ASP.NET Core solution
 * [ ] REST endpoints
@@ -1143,6 +1725,7 @@ Performance benchmarks       Complete
 * [ ] Dockerfiles
 * [ ] Docker Compose
 * [x] Initial Linux C++ builds through GitHub Actions
+* [x] Initial Linux C builds through GitHub Actions
 * [ ] Development scripts
 * [ ] Component networking
 * [ ] Environment configuration
@@ -1152,6 +1735,7 @@ Performance benchmarks       Complete
 * [x] Initial GitHub Actions quality checks
 * [x] Python automated build and test workflow
 * [x] Initial C++ automated build and test workflow
+* [x] Initial C automated build and test workflow
 * [ ] Automated multi-component builds
 * [ ] Extended code-quality checks
 * [ ] Container image creation
@@ -1221,6 +1805,31 @@ Current C++ examples include:
 * Minimum battery state-of-charge protection
 * Charge limiting by remaining battery capacity
 * Discharge limiting by minimum battery reserve
+* Hardware command translation
+* Battery and grid actuator routing
+* Complete-state actuator updates
+* Partial hardware failure reporting
+* Unknown action rejection before hardware access
+* Unconfigured actuator handling
+
+Current C examples include:
+
+* Sensor argument validation
+* Sensor callback configuration
+* Sensor callback failure propagation
+* Sensor output preservation on failed reads
+* Actuator argument validation
+* Actuator/action compatibility
+* Actuator power validation
+* Actuator callback failure propagation
+* Simulated sensor initialization
+* Simulated sensor read behavior
+* Simulated sensor failure injection
+* Simulated actuator initialization
+* Simulated actuator apply behavior
+* Simulated actuator failure injection
+* Hardware error mapping
+* Unknown hardware status handling
 
 ### Scenario tests
 
@@ -1240,17 +1849,54 @@ Later scenarios may include:
 * Battery overheating
 * Safety shutdown
 * Load shedding
-* Cross-component control-command behavior
+* Extended cross-component behavior
 
 ### Integration tests
 
-Integration tests will verify communication between components.
+Integration testing is now used for the C++ controller and C hardware boundary.
 
-Examples include:
+Current integration coverage includes:
+
+* Controller decision to battery actuator execution
+* Controller decision to grid actuator execution
+* Explicit idling of non-target actuators
+* State changes across consecutive controller commands
+* Normalized hardware-error propagation
+* Partial actuator failures
+* Unconfigured hardware interfaces
+* C++ to C function linkage
+* End-to-end execution from `EnergyMeasurement` through `EnergyController` into
+  simulated C hardware
+
+The end-to-end path tested is:
+
+```text
+EnergyMeasurement
+        │
+        ▼
+EnergyController::decide()
+        │
+        ▼
+ControlCommand
+        │
+        ▼
+HardwareCommandExecutor::execute()
+        │
+        ▼
+GridFlexActuator
+        │
+        ▼
+C callback
+        │
+        ▼
+GridFlexSimulatedActuator
+```
+
+Future integration work will include:
 
 * Simulation engine to controller
-* Controller to hardware abstraction
 * ASP.NET Core API to system components
+* Containerized component communication
 
 ### Performance benchmarks
 
@@ -1327,37 +1973,96 @@ Tests are expected to verify meaningful domain rules, boundaries and edge cases.
 
 ### C++
 
-The current C++ correctness baseline includes:
+At the completion of Milestone 4, the current local C++ Catch2 baseline is:
 
 ```text
-35 C++ tests passed
-8 EnergyMeasurement tests
-7 ControlCommand tests
-7 ControllerLimits tests
-13 EnergyController tests
-Debug build passed with MSVC
-Release build passed with MSVC
-CTest passed
+47 Catch2 test cases passed
+148 assertions passed
+Debug and Release builds supported with MSVC
 Linux GitHub Actions build passed
-Linux GitHub Actions tests passed
 Controller CLI smoke test passed
 Controller benchmark smoke test passed
 ```
 
-The C++ quality baseline covers:
+The C++ test suite covers:
 
-* Domain contracts
+* `EnergyMeasurement`
+* `ControlCommand`
+* `ControllerLimits`
+* `EnergyController`
+* `HardwareCommandExecutor`
+* Controller-to-C-hardware integration
+
+The integrated controller CTest build additionally includes the native C
+hardware tests.
+
+The combined local validation baseline is:
+
+```text
+52 CTest tests passed
+0 CTest tests failed
+```
+
+This consists of:
+
+```text
+47 discovered Catch2 test cases
+5 native C hardware test targets
+```
+
+### C
+
+The current C hardware quality baseline includes:
+
+```text
+C17 build passed with MSVC
+gridflex_hardware static library built successfully
+Hardware CLI built successfully
+5 native C test executables registered through CTest
+Sensor tests passed
+Actuator tests passed
+Simulated sensor tests passed
+Simulated actuator tests passed
+Hardware error tests passed
+Linux GitHub Actions build and tests passed
+```
+
+The C quality baseline covers:
+
+* Sensor contracts
+* Actuator contracts
 * Defensive validation
-* Deterministic controller decisions
-* Battery operating constraints
-* Windows and Linux builds
-* Unit-test execution
-* CLI linkage and execution
-* Benchmark compilation and execution
+* Callback configuration
+* Callback failure propagation
+* Simulated device behavior
+* Failure injection
+* Common error normalization
+* C/C++ compatible public interfaces
+
+### Mixed C/C++ integration
+
+The controller project is now a mixed-language CMake build.
+
+The current validation demonstrates:
+
+```text
+C compiler       MSVC
+C++ compiler     MSVC
+C standard       C17
+C++ standard     C++20
+C static library successfully linked into C++ controller
+52 integrated CTest tests passed
+47 Catch2 cases passed
+148 Catch2 assertions passed
+```
+
+GitHub Actions additionally validates the repository using Linux-based
+toolchains.
 
 ### C++ performance baseline
 
-Representative local Windows/MSVC Release microbenchmark measurements were:
+Representative local Windows/MSVC Release microbenchmark measurements from the
+Milestone 3 baseline were:
 
 ```text
 Surplus decision:   approximately 23–25 ns/decision
@@ -1374,6 +2079,8 @@ Deficit decision:   23.03 ns/decision
 Balanced decision:  11.05 ns/decision
 ```
 
+Later local runs have shown normal variation above these numbers.
+
 These measurements are development-machine microbenchmark results.
 
 They are not real-time guarantees, production service-level objectives or
@@ -1387,7 +2094,11 @@ additional controller complexity is introduced.
 
 ## Continuous integration
 
-The repository currently contains separate quality workflows for Python and C++.
+The repository currently contains separate quality workflows for:
+
+* Python
+* C++
+* C
 
 ### Python Quality
 
@@ -1406,30 +2117,91 @@ The C++ workflow:
 * Runs on Ubuntu
 * Displays CMake and compiler versions
 * Configures the controller as a Release build
-* Enables C++ testing
-* Enables C++ benchmark builds
-* Builds the controller
+* Enables testing
+* Enables benchmark builds
+* Builds the mixed C/C++ controller project
+* Builds the C hardware dependency
 * Builds the benchmark executable
 * Runs CTest
 * Executes the controller CLI as a smoke test
 * Executes the controller benchmark as a smoke test
 
-This gives the C++ component validation on both:
+Because the controller now includes the C hardware project through CMake, the
+controller integration workflow also exercises the C/C++ boundary.
+
+### C Quality
+
+The C workflow:
+
+* Runs on Ubuntu
+* Configures the standalone hardware project
+* Builds the C static library
+* Builds the hardware CLI
+* Builds the native C tests
+* Runs CTest
+* Executes the hardware CLI as a smoke test
+
+This gives the native components validation on both:
 
 ```text
 Local development:
 Windows + MSVC
 
 Continuous integration:
-Linux + C++ toolchain
+Linux + native C/C++ toolchains
 ```
 
 Performance timings from the shared Linux CI runner are not used as pass/fail
 thresholds.
 
+## C hardware build structure
+
+The hardware component is built as a reusable C static library.
+
+Conceptually:
+
+```text
+hardware.c
+sensor.c
+actuator.c
+simulated_sensor.c
+simulated_actuator.c
+error.c
+        │
+        ▼
+gridflex_hardware
+```
+
+The standalone hardware project also builds:
+
+```text
+gridflex_hardware
+        │
+        ├──────────────► gridflex_hardware_cli
+        │
+        ├──────────────► gridflex_sensor_tests
+        │
+        ├──────────────► gridflex_actuator_tests
+        │
+        ├──────────────► gridflex_simulated_sensor_tests
+        │
+        ├──────────────► gridflex_simulated_actuator_tests
+        │
+        └──────────────► gridflex_error_tests
+```
+
+This keeps generic hardware interfaces and simulated implementations separate
+from:
+
+* CLI entry points
+* Native test executables
+* C++ controller logic
+
 ## C++ build structure
 
-The controller is built as a reusable static library:
+The controller is built as a reusable static library.
+
+The current controller source structure includes:
 
 ```text
 control_command.cpp
@@ -1437,50 +2209,54 @@ controller.cpp
 controller_limits.cpp
 energy_controller.cpp
 energy_measurement.cpp
+hardware_command_executor.cpp
         │
         ▼
 gridflex_controller
 ```
 
-Multiple executables consume the same library:
+The controller publicly links against:
 
 ```text
-                        gridflex_controller
-                               │
-              ┌────────────────┼────────────────┐
-              │                │                │
-              ▼                ▼                ▼
-gridflex_controller_cli   controller tests   controller benchmark
+gridflex_hardware
 ```
 
-The concrete targets are:
+The relationship is:
 
 ```text
+gridflex_hardware
+        │
+        │ C static library
+        ▼
 gridflex_controller
         │
+        │ C++ static library
         ├──────────────► gridflex_controller_cli
-        │
         ├──────────────► gridflex_controller_tests
-        │
         └──────────────► gridflex_controller_benchmark
 ```
 
-This keeps reusable controller logic and domain models separate from:
+The `PUBLIC` CMake dependency is intentional because the public
+`hardware_command_executor.hpp` interface exposes C hardware types.
 
-* CLI entry points
-* Correctness tests
-* Performance measurement infrastructure
+Consumers of that public C++ interface therefore also require access to the
+hardware headers.
 
-The benchmark does not reimplement controller behavior.
+The controller CMake project declares both languages:
 
-It links against the same `gridflex_controller` library used by the other C++
-executables.
+```text
+C
+C++
+```
+
+This allows the top-level controller build to include the hardware subproject
+and validate the mixed-language integration.
 
 ## C++ testing infrastructure
 
 The C++ component uses:
 
-* Catch2 as the unit-test framework
+* Catch2 as the C++ test framework
 * CTest as the CMake-integrated test runner
 
 Catch2 provides the test API, including test cases and assertions.
@@ -1507,7 +2283,7 @@ Pass / fail result
 
 The same CTest integration is used locally and through GitHub Actions.
 
-The current test executable includes tests for:
+The current C++ test executable includes tests for:
 
 ```text
 EnergyMeasurement
@@ -1534,7 +2310,59 @@ EnergyController
         ├── balance tolerance
         ├── charge and discharge power limits
         └── state-of-charge protection
+
+HardwareCommandExecutor
+        │
+        ├── command translation
+        ├── battery routing
+        ├── grid routing
+        ├── complete-state execution
+        ├── partial failure handling
+        ├── normalized error reporting
+        └── defensive action validation
 ```
+
+An additional integration case tests:
+
+```text
+EnergyMeasurement
+        │
+        ▼
+EnergyController
+        │
+        ▼
+ControlCommand
+        │
+        ▼
+HardwareCommandExecutor
+        │
+        ▼
+C hardware abstraction
+        │
+        ▼
+Simulated actuator state
+```
+
+## C testing infrastructure
+
+The C hardware project uses lightweight native C test executables registered
+through CTest.
+
+The test targets are:
+
+```text
+gridflex_sensor_tests
+gridflex_actuator_tests
+gridflex_simulated_sensor_tests
+gridflex_simulated_actuator_tests
+gridflex_error_tests
+```
+
+Each executable returns a process exit code that allows CTest to determine
+whether the test target succeeded.
+
+The C tests verify the generic hardware contracts independently from the C++
+controller.
 
 ## C++ benchmark infrastructure
 
@@ -1628,6 +2456,12 @@ The checksum has no energy-domain meaning.
 Its purpose is to make benchmark output observable so that compiler
 optimization cannot trivially discard unused controller results.
 
+The hardware executor is deliberately not part of this controller decision
+microbenchmark.
+
+Controller decision performance and hardware execution behavior remain separate
+measurement concerns.
+
 ## Security considerations
 
 The current version runs as a local simulation and does not control physical
@@ -1654,8 +2488,13 @@ industrial equipment or energy infrastructure.
 The project does not implement certified electrical safety functionality,
 protection systems or production-ready control logic.
 
-Safety-related controller behavior in the project remains educational and
-simulated.
+Safety-related controller and hardware behavior in the project remains
+educational and simulated.
+
+The simulated hardware interfaces are designed for learning and testing.
+
+They must not be interpreted as certified device drivers or production safety
+systems.
 
 ## Out of scope
 
@@ -1673,18 +2512,18 @@ The current GridFlex EMS project does not include:
 
 ## Technology choices
 
-The planned technology responsibilities are:
+The technology responsibilities are:
 
-| Area                    | Technology          | Purpose                               |
-| ----------------------- | ------------------- | ------------------------------------- |
-| Backend                 | C# and ASP.NET Core | APIs and application coordination     |
-| Simulation              | Python              | Energy models and scenario simulation |
-| Controller              | C++                 | Performance-oriented control logic    |
-| Hardware abstraction    | C                   | Low-level and embedded concepts       |
-| Containers              | Docker              | Reproducible runtime environments     |
-| CI/CD                   | GitHub Actions      | Automated builds and tests            |
-| Cloud                   | Microsoft Azure     | Deployment and observability          |
-| Development environment | Windows and Linux   | Cross-platform development            |
+| Area                    | Technology          | Purpose                               | Status      |
+| ----------------------- | ------------------- | ------------------------------------- | ----------- |
+| Backend                 | C# and ASP.NET Core | APIs and application coordination     | Next        |
+| Simulation              | Python              | Energy models and scenario simulation | Implemented |
+| Controller              | C++                 | Performance-oriented control logic    | Implemented |
+| Hardware abstraction    | C                   | Low-level and embedded concepts       | Implemented |
+| Containers              | Docker              | Reproducible runtime environments     | Planned     |
+| CI/CD                   | GitHub Actions      | Automated builds and tests            | Implemented |
+| Cloud                   | Microsoft Azure     | Deployment and observability          | Planned     |
+| Development environment | Windows and Linux   | Cross-platform development            | Active      |
 
 Each technology must have a clear responsibility.
 
@@ -1792,12 +2631,83 @@ python -m mypy
 python -m pytest --cov=gridflex_simulation --cov-report=term-missing
 ```
 
+## Building the C hardware layer
+
+The standalone C hardware project is located in:
+
+```text
+hardware/
+```
+
+On Windows, initialize a Visual Studio Developer PowerShell environment before
+building.
+
+Configure the hardware project with tests enabled:
+
+```powershell
+cmake `
+  -S hardware `
+  -B hardware/build `
+  -DBUILD_TESTING=ON
+```
+
+Build the Release configuration:
+
+```powershell
+cmake `
+  --build hardware/build `
+  --config Release
+```
+
+## Running the C hardware tests
+
+Run the Release hardware tests:
+
+```powershell
+ctest `
+  --test-dir hardware/build `
+  -C Release `
+  --output-on-failure
+```
+
+The hardware project currently registers five CTest targets:
+
+```text
+gridflex_hardware_sensor_tests
+gridflex_hardware_actuator_tests
+gridflex_hardware_simulated_sensor_tests
+gridflex_hardware_simulated_actuator_tests
+gridflex_hardware_error_tests
+```
+
+## Running the C hardware CLI
+
+After building the Release configuration on Windows:
+
+```powershell
+& ".\hardware\build\Release\gridflex_hardware_cli.exe"
+```
+
+The CLI is intentionally small.
+
+Its purpose is to provide a native executable that proves that the C hardware
+library can be built, linked and executed independently.
+
 ## Building the C++ controller
 
 The C++ controller is located in:
 
 ```text
 controller/
+```
+
+The controller build now includes the C hardware project as a dependency.
+
+The top-level controller CMake project therefore enables both:
+
+```text
+C
+C++
 ```
 
 On Windows, initialize a Visual Studio Developer PowerShell environment before
@@ -1828,7 +2738,7 @@ cmake `
   --config Release
 ```
 
-## Running the C++ tests
+## Running the integrated C/C++ tests
 
 Run the Debug tests:
 
@@ -1848,11 +2758,31 @@ ctest `
   --output-on-failure
 ```
 
-The current expected result is:
+The current expected integrated result is:
 
 ```text
 100% tests passed
-0 tests failed out of 35
+0 tests failed out of 52
+```
+
+The 52 CTest tests consist of:
+
+```text
+47 discovered Catch2 test cases
+5 native C hardware test targets
+```
+
+Run the C++ Catch2 executable directly on Windows:
+
+```powershell
+& ".\controller\build\Release\gridflex_controller_tests.exe"
+```
+
+Current local baseline:
+
+```text
+All tests passed
+148 assertions in 47 test cases
 ```
 
 ## Running the C++ controller CLI
@@ -1874,8 +2804,8 @@ The CLI is intentionally small.
 Its purpose at the current stage is to verify that the reusable controller
 library can be linked into and consumed by an executable.
 
-Additional controller behavior and integration will continue to be developed
-incrementally behind the library interface.
+Controller behavior and hardware integration remain implemented behind reusable
+library interfaces rather than inside the CLI.
 
 ## Running the C++ controller benchmark
 
@@ -1940,8 +2870,9 @@ They are not portable timing guarantees.
 
 ## Current controller architecture
 
-The controller has explicit models on both sides of its domain boundary and a
-validated operating-limit configuration.
+The controller has explicit models on both sides of its decision boundary, a
+validated operating-limit configuration and a separate hardware-execution
+boundary.
 
 ```text
                   ControllerLimits
@@ -1957,6 +2888,18 @@ EnergyMeasurement ─────► EnergyController
                          │ deterministic decision
                          ▼
                   ControlCommand
+                         │
+                         ▼
+              HardwareCommandExecutor
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+              ▼                     ▼
+      Battery actuator       Grid actuator
+              │                     │
+              └──────────┬──────────┘
+                         ▼
+             C Hardware Abstraction
 ```
 
 `EnergyMeasurement` describes what the controller knows about the current
@@ -1967,6 +2910,12 @@ respect.
 
 `ControlCommand` describes what the controller is allowed to request.
 
+`HardwareCommandExecutor` translates a valid controller command into explicit C
+hardware actuator commands.
+
+The C hardware layer owns generic device contracts and concrete simulated device
+behavior.
+
 Separating these responsibilities means that:
 
 * Measurement validation is independent of decision logic
@@ -1974,7 +2923,10 @@ Separating these responsibilities means that:
 * Operating-limit validation is independent of individual measurements
 * Controller rules can operate on already valid input
 * Controller decisions can be constrained by validated configuration
-* Downstream components can receive already valid commands
+* Hardware I/O is separate from controller decision logic
+* C hardware interfaces are independent of C++ controller implementation
+* Simulated hardware can be replaced without changing controller rules
+* Hardware failures can be reported independently for battery and grid devices
 * Each responsibility can be tested independently
 
 ## C++ controller decision logic
@@ -2098,14 +3050,14 @@ Power and SOC constraints
 Allowed ControlCommand
 ```
 
-Grid fallback behavior is intentionally not part of the current controller
-logic yet.
+Grid fallback behavior is intentionally not part of the current
+`EnergyController` decision logic yet.
 
 For example, if a deficit remains when the battery reaches its minimum state of
 charge, the controller currently returns `Idle` rather than automatically
 creating an `ImportFromGrid` command.
 
-Grid prioritization and fallback behavior will be introduced separately so that
+Grid prioritization and fallback behavior can be introduced separately so that
 battery control, operating constraints and grid strategy remain independently
 testable.
 
@@ -2163,44 +3115,15 @@ between decision paths visible.
 The benchmark baseline is intended to support comparisons as future controller
 behavior is added.
 
-## Next development step
+The hardware executor remains outside this microbenchmark because hardware
+execution and pure controller decision performance are different concerns.
 
-Milestone 3 is complete.
+## Milestone 4 completion
 
-Completed C++ controller work:
+Milestone 4 introduced the first low-level hardware boundary beneath the C++
+controller.
 
-```text
-C++ project structure             Complete
-CMake configuration               Complete
-Static controller library         Complete
-Controller CLI                    Complete
-Windows MSVC build                Complete
-Linux CI build                    Complete
-EnergyMeasurement input           Complete
-Measurement validation            Complete
-ControlCommand output             Complete
-Control command validation        Complete
-Initial deterministic rules       Complete
-Controller operating limits       Complete
-Battery SOC protection            Complete
-Catch2 integration                Complete
-CTest integration                  Complete
-C++ CI test execution              Complete
-Benchmark infrastructure          Complete
-Release benchmark build           Complete
-Surplus benchmark                  Complete
-Deficit benchmark                  Complete
-Balanced benchmark                 Complete
-Linux benchmark smoke test         Complete
-```
-
-The next development milestone is:
-
-```text
-Milestone 4: Hardware abstraction
-```
-
-The next implementation sequence is planned as:
+The completed implementation sequence was:
 
 ```text
 C project setup
@@ -2212,7 +3135,10 @@ Sensor interfaces
 Actuator interfaces
       │
       ▼
-Simulated hardware devices
+Simulated sensor devices
+      │
+      ▼
+Simulated actuator devices
       │
       ▼
 Error handling
@@ -2221,7 +3147,7 @@ Error handling
 Controller integration
 ```
 
-This introduces a separate low-level boundary beneath the C++ controller:
+The resulting native architecture is:
 
 ```text
 EnergyMeasurement
@@ -2231,11 +3157,16 @@ C++ EnergyController
       │
       │ ControlCommand
       ▼
+HardwareCommandExecutor
+      │
+      ▼
 C Hardware Abstraction Layer
       │
       ├── Sensor interfaces
       ├── Actuator interfaces
-      └── Simulated devices
+      ├── Simulated sensors
+      ├── Simulated actuators
+      └── Error normalization
 ```
 
 The purpose of the C hardware abstraction layer is not to add another language
@@ -2254,9 +3185,113 @@ C
 Low-level hardware-facing interfaces
 ```
 
-The communication mechanism between the larger Python, C++, C and future C#
-components will be selected separately and documented through an Architecture
-Decision Record.
+The controller-to-hardware integration demonstrates that the two native
+languages can interact through explicit, testable contracts without moving
+hardware behavior into the controller domain logic.
+
+## Next development step
+
+Milestone 4 is complete.
+
+Completed hardware-abstraction work:
+
+```text
+C project foundation                 Complete
+C17 CMake configuration              Complete
+Static C hardware library            Complete
+Hardware CLI                         Complete
+Windows MSVC build                   Complete
+Linux C CI                           Complete
+Sensor interface                     Complete
+Actuator interface                   Complete
+Simulated sensor devices             Complete
+Simulated actuator devices           Complete
+Failure injection                    Complete
+Hardware error model                 Complete
+Hardware error normalization         Complete
+C++ compatible C headers             Complete
+Controller hardware executor         Complete
+Complete-state actuator mapping      Complete
+Partial failure reporting            Complete
+Mixed C/C++ CMake build              Complete
+Controller-to-hardware integration   Complete
+End-to-end integration test          Complete
+Integrated C/C++ CTest execution     Complete
+```
+
+The next development milestone is:
+
+```text
+Milestone 5: Backend API
+```
+
+The planned implementation sequence is:
+
+```text
+ASP.NET Core solution
+      │
+      ▼
+Backend project structure
+      │
+      ▼
+REST endpoints
+      │
+      ▼
+Application services
+      │
+      ▼
+Health checks
+      │
+      ▼
+Structured logging
+      │
+      ▼
+Integration contracts
+      │
+      ▼
+Simulation and controller integration
+```
+
+This introduces the application-facing layer above the existing energy
+components:
+
+```text
+                 Future Frontend
+                       │
+                       │ HTTP
+                       ▼
+               ASP.NET Core API
+                       │
+                       │ application coordination
+                       ▼
+          Energy management components
+              │                  │
+              ▼                  ▼
+      Python Simulation     Native Controller
+                                  │
+                                  ▼
+                           C Hardware Layer
+```
+
+The backend should coordinate application-level use cases without moving
+simulation, controller or hardware-domain responsibilities into the API layer.
+
+The communication mechanism between the ASP.NET Core backend and the existing
+Python/C++/C components will be selected deliberately.
+
+That decision should consider:
+
+* Clear component boundaries
+* Testability
+* Portability
+* Development complexity
+* Failure handling
+* Observability
+* Containerization
+* Future deployment requirements
+
+Any important communication decision should be documented through an
+Architecture Decision Record before the system becomes dependent on it.
 
 ## Disclaimer
 
