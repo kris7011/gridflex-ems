@@ -6,6 +6,38 @@
 #include <cstdint>
 #include <type_traits>
 
+namespace
+{
+
+[[nodiscard]] GridFlexControllerLimits create_valid_limits()
+{
+    return GridFlexControllerLimits{
+        10.0,
+        10.0,
+        0.0,
+        20.0};
+}
+
+[[nodiscard]] GridFlexControllerMeasurement create_measurement(
+    const std::uint64_t step_number,
+    const double net_energy_kwh,
+    const double battery_state_of_charge_kwh)
+{
+    return GridFlexControllerMeasurement{
+        step_number,
+        1.0,
+        0.25,
+        5.0,
+        2.0,
+        net_energy_kwh,
+        battery_state_of_charge_kwh,
+        0.0,
+        0.0,
+        0.0};
+}
+
+} // namespace
+
 TEST_CASE("Native API defines stable ABI scalar types")
 {
     STATIC_REQUIRE(
@@ -212,4 +244,252 @@ TEST_CASE("Native API decision has stable memory layout")
             GridFlexControllerDecision,
             requested_power_kw) ==
         16);
+}
+
+TEST_CASE("Native API reports ABI version")
+{
+    REQUIRE(
+        gridflex_controller_abi_version() ==
+        GRIDFLEX_CONTROLLER_ABI_VERSION);
+}
+
+TEST_CASE("Native API create rejects null arguments")
+{
+    const GridFlexControllerLimits limits =
+        create_valid_limits();
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    REQUIRE(
+        gridflex_controller_create(
+            &limits,
+            &handle) ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(handle != nullptr);
+
+    gridflex_controller_destroy(handle);
+
+    REQUIRE(
+        gridflex_controller_create(
+            nullptr,
+            &handle) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT);
+
+    REQUIRE(handle == nullptr);
+
+    REQUIRE(
+        gridflex_controller_create(
+            &limits,
+            nullptr) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT);
+}
+
+TEST_CASE("Native API create maps invalid controller limits")
+{
+    GridFlexControllerLimits limits =
+        create_valid_limits();
+
+    limits.max_charge_power_kw = 0.0;
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    const GridFlexControllerStatus status =
+        gridflex_controller_create(
+            &limits,
+            &handle);
+
+    REQUIRE(
+        status ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_LIMITS);
+
+    REQUIRE(handle == nullptr);
+}
+
+TEST_CASE("Native API create returns controller handle")
+{
+    const GridFlexControllerLimits limits =
+        create_valid_limits();
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    const GridFlexControllerStatus status =
+        gridflex_controller_create(
+            &limits,
+            &handle);
+
+    REQUIRE(
+        status ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(handle != nullptr);
+
+    gridflex_controller_destroy(handle);
+}
+
+TEST_CASE("Native API destroy accepts null handle")
+{
+    REQUIRE_NOTHROW(
+        gridflex_controller_destroy(nullptr));
+}
+
+TEST_CASE("Native API decide rejects null arguments")
+{
+    const GridFlexControllerLimits limits =
+        create_valid_limits();
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    REQUIRE(
+        gridflex_controller_create(
+            &limits,
+            &handle) ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(handle != nullptr);
+
+    const GridFlexControllerMeasurement measurement =
+        create_measurement(
+            42,
+            3.0,
+            10.0);
+
+    GridFlexControllerDecision decision{};
+
+    CHECK(
+        gridflex_controller_decide(
+            nullptr,
+            &measurement,
+            &decision) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT);
+
+    CHECK(
+        gridflex_controller_decide(
+            handle,
+            nullptr,
+            &decision) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT);
+
+    CHECK(
+        gridflex_controller_decide(
+            handle,
+            &measurement,
+            nullptr) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT);
+
+    gridflex_controller_destroy(handle);
+}
+
+TEST_CASE("Native API decide maps invalid measurement")
+{
+    const GridFlexControllerLimits limits =
+        create_valid_limits();
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    REQUIRE(
+        gridflex_controller_create(
+            &limits,
+            &handle) ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(handle != nullptr);
+
+    const GridFlexControllerMeasurement measurement =
+        create_measurement(
+            0,
+            3.0,
+            10.0);
+
+    GridFlexControllerDecision decision{};
+
+    const GridFlexControllerStatus status =
+        gridflex_controller_decide(
+            handle,
+            &measurement,
+            &decision);
+
+    gridflex_controller_destroy(handle);
+
+    REQUIRE(
+        status ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_MEASUREMENT);
+}
+
+TEST_CASE("Native API reuses controller handle across decisions")
+{
+    const GridFlexControllerLimits limits =
+        create_valid_limits();
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    REQUIRE(
+        gridflex_controller_create(
+            &limits,
+            &handle) ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(handle != nullptr);
+
+    const GridFlexControllerMeasurement surplus_measurement =
+        create_measurement(
+            42,
+            3.0,
+            10.0);
+
+    GridFlexControllerDecision surplus_decision{};
+
+    const GridFlexControllerStatus surplus_status =
+        gridflex_controller_decide(
+            handle,
+            &surplus_measurement,
+            &surplus_decision);
+
+    const GridFlexControllerMeasurement deficit_measurement =
+        create_measurement(
+            43,
+            -1.5,
+            10.0);
+
+    GridFlexControllerDecision deficit_decision{};
+
+    const GridFlexControllerStatus deficit_status =
+        gridflex_controller_decide(
+            handle,
+            &deficit_measurement,
+            &deficit_decision);
+
+    gridflex_controller_destroy(handle);
+
+    REQUIRE(
+        surplus_status ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(
+        surplus_decision.source_step_number ==
+        42);
+
+    REQUIRE(
+        surplus_decision.action ==
+        GRIDFLEX_CONTROLLER_ACTION_CHARGE_BATTERY);
+
+    REQUIRE(
+        surplus_decision.requested_power_kw ==
+        10.0);
+
+    REQUIRE(
+        deficit_status ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(
+        deficit_decision.source_step_number ==
+        43);
+
+    REQUIRE(
+        deficit_decision.action ==
+        GRIDFLEX_CONTROLLER_ACTION_DISCHARGE_BATTERY);
+
+    REQUIRE(
+        deficit_decision.requested_power_kw ==
+        6.0);
 }

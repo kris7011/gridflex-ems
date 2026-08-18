@@ -49,6 +49,30 @@ target_link_libraries(
         gridflex_hardware
 )
 
+add_library(
+    gridflex_controller_native
+    STATIC
+    src/native_api.cpp
+)
+
+target_include_directories(
+    gridflex_controller_native
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+target_compile_features(
+    gridflex_controller_native
+    PUBLIC
+        cxx_std_20
+)
+
+target_link_libraries(
+    gridflex_controller_native
+    PRIVATE
+        gridflex_controller
+)
+
 add_executable(
     gridflex_controller_cli
     src/main.cpp
@@ -62,6 +86,7 @@ target_link_libraries(
 
 set_target_properties(
     gridflex_controller
+    gridflex_controller_native
     gridflex_controller_cli
     PROPERTIES
         CXX_EXTENSIONS OFF
@@ -76,6 +101,13 @@ if(MSVC)
     )
 
     target_compile_options(
+        gridflex_controller_native
+        PRIVATE
+            /W4
+            /permissive-
+    )
+
+    target_compile_options(
         gridflex_controller_cli
         PRIVATE
             /W4
@@ -84,6 +116,14 @@ if(MSVC)
 else()
     target_compile_options(
         gridflex_controller
+        PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+    )
+
+    target_compile_options(
+        gridflex_controller_native
         PRIVATE
             -Wall
             -Wextra
@@ -162,6 +202,7 @@ if(BUILD_TESTING)
         gridflex_controller_tests
         PRIVATE
             gridflex_controller
+            gridflex_controller_native
             Catch2::Catch2WithMain
     )
 
