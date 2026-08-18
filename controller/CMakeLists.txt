@@ -154,6 +154,8 @@ if(BUILD_TESTING)
         tests/energy_controller_tests.cpp
         tests/energy_measurement_tests.cpp
         tests/hardware_command_executor_tests.cpp
+        tests/native_api_c_compatibility.c
+        tests/native_api_tests.cpp
     )
 
     target_link_libraries(
@@ -166,6 +168,9 @@ if(BUILD_TESTING)
     set_target_properties(
         gridflex_controller_tests
         PROPERTIES
+            C_STANDARD 11
+            C_STANDARD_REQUIRED ON
+            C_EXTENSIONS OFF
             CXX_EXTENSIONS OFF
     )
 
