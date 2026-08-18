@@ -49,9 +49,16 @@ target_link_libraries(
         gridflex_hardware
 )
 
+set_target_properties(
+    gridflex_hardware
+    gridflex_controller
+    PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+)
+
 add_library(
     gridflex_controller_native
-    STATIC
+    SHARED
     src/native_api.cpp
 )
 
@@ -65,6 +72,12 @@ target_compile_features(
     gridflex_controller_native
     PUBLIC
         cxx_std_20
+)
+
+target_compile_definitions(
+    gridflex_controller_native
+    PRIVATE
+        GRIDFLEX_CONTROLLER_NATIVE_EXPORTS
 )
 
 target_link_libraries(
@@ -204,6 +217,12 @@ if(BUILD_TESTING)
             gridflex_controller
             gridflex_controller_native
             Catch2::Catch2WithMain
+    )
+
+    target_compile_definitions(
+        gridflex_controller_tests
+        PRIVATE
+            GRIDFLEX_CONTROLLER_NATIVE_IMPORTS
     )
 
     set_target_properties(
