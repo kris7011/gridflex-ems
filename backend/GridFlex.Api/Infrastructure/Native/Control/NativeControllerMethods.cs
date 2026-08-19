@@ -24,7 +24,7 @@ internal static partial class NativeControllerMethods
     CallConvs = [typeof(CallConvCdecl)])]
   internal static partial NativeControllerStatus Create(
     in NativeControllerLimits limits,
-    out nint handle);
+    out NativeControllerSafeHandle handle);
 
   [LibraryImport(
     LibraryName,
@@ -40,7 +40,7 @@ internal static partial class NativeControllerMethods
   [UnmanagedCallConv(
     CallConvs = [typeof(CallConvCdecl)])]
   internal static partial NativeControllerStatus Decide(
-    nint handle,
+    NativeControllerSafeHandle handle,
     in NativeControllerMeasurement measurement,
     out NativeControllerDecision decision);
 }

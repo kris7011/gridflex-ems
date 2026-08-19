@@ -14,4 +14,35 @@ public sealed class NativeControllerRuntimeIntegrationTests
       NativeControllerMethods.ExpectedAbiVersion,
       actualAbiVersion);
   }
+
+  [Fact]
+  public void CreateAndDisposeControllerOwnsNativeHandle()
+  {
+    var limits =
+      new NativeControllerLimits
+      {
+        MaxChargePowerKw = 10.0,
+        MaxDischargePowerKw = 10.0,
+        MinimumBatterySocKwh = 2.0,
+        MaximumBatterySocKwh = 20.0
+      };
+
+    var status =
+      NativeControllerMethods.Create(
+        in limits,
+        out var handle);
+
+    Assert.Equal(
+      NativeControllerStatus.Ok,
+      status);
+
+    Assert.False(handle.IsInvalid);
+
+    using (handle)
+    {
+      Assert.False(handle.IsClosed);
+    }
+
+    Assert.True(handle.IsClosed);
+  }
 }
