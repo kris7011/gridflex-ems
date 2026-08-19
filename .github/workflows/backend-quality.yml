@@ -28,6 +28,25 @@ jobs:
             - name: Show .NET version
               run: dotnet --info
 
+            - name: Configure native controller
+              run: >-
+                  cmake
+                  -S controller
+                  -B controller/build
+                  -DCMAKE_BUILD_TYPE=Release
+                  -DBUILD_TESTING=OFF
+                  -DGRIDFLEX_BUILD_BENCHMARKS=OFF
+
+            - name: Build native controller library
+              run: >-
+                  cmake
+                  --build controller/build
+                  --target gridflex_controller_native
+                  --parallel
+
+            - name: Verify native controller library
+              run: test -f controller/build/libgridflex_controller_native.so
+
             - name: Restore backend
               run: dotnet restore backend/GridFlex.slnx
 
@@ -46,6 +65,8 @@ jobs:
                   --no-restore
 
             - name: Test backend
+              env:
+                  LD_LIBRARY_PATH: ${{ github.workspace }}/controller/build
               run: >-
                   dotnet test
                   backend/GridFlex.slnx
