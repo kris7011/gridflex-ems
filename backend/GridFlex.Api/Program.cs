@@ -29,6 +29,7 @@ app.UseHttpsRedirection();
 
 app.MapHealthEndpoints();
 app.MapSystemStatusEndpoints();
+app.MapControlDecisionEndpoints();
 
 app.Run();
 
