@@ -47,6 +47,11 @@ if [[ ! -f "${application_output}/GridFlex.Api.dll" ]]; then
     exit 1
 fi
 
+if [[ ! -f "${application_output}/appsettings.json" ]]; then
+    echo "Published appsettings.json was not found." >&2
+    exit 1
+fi
+
 if [[ ! -f "${native_output}/libgridflex_controller_native.so" ]]; then
     echo "Packaged native controller runtime was not found." >&2
     exit 1
