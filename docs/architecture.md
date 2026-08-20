@@ -90,39 +90,60 @@ Responsibilities:
 - Represent embedded software concepts
 - Report hardware-related errors
 
-## Initial data flow
+## Current controller data flow
+
+The implemented backend-to-controller path is:
 
 ```text
-Python Simulation
+HTTP client
        │
-       │ Measurements
-       ▼
-C++ Controller
-       │
-       │ Commands
-       ▼
-C Hardware Abstraction
-       │
-       │ Equipment state
+       │ JSON request
        ▼
 ASP.NET Core API
        │
-       │ Status
+       │ ControlDecisionRequest
        ▼
-Frontend Dashboard
+ControlDecisionService
+       │
+       │ EnergyMeasurementInput
+       ▼
+IControllerGateway
+       │
+       ▼
+NativeControllerGateway
+       │
+       │ LibraryImport
+       ▼
+Versioned C ABI
+       │
+       ▼
+C++ EnergyController
+       │
+       │ ControlCommand
+       ▼
+C hardware abstraction
 ```
 
-The exact integration mechanism will be selected in a later Architecture
-Decision Record.
+The .NET application layer does not depend on native implementation details.
 
-Possible options include:
+`IControllerGateway` forms the application boundary, while
+`NativeControllerGateway` owns the infrastructure-specific interoperability.
 
-- HTTP
-- gRPC
-- Message queues
-- Shared libraries
-- Standard input and output streams
-- Local sockets
+The managed/native integration uses:
+
+- A native shared library
+- A versioned C ABI
+- Source-generated `.NET` `LibraryImport`
+- Explicit structure and enum mapping
+- `SafeHandle` for native lifetime management
+- Native ABI compatibility validation
+- Managed translation of native error statuses
+
+The architectural decision is documented in:
+
+[ADR 0002: Use a C ABI for .NET to C++ controller interoperability](decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
+
+Python-to-backend integration remains a later architectural concern.
 
 ## Initial battery model
 
@@ -206,15 +227,38 @@ The architecture follows these principles:
 
 ## Integration strategy
 
-The first milestone does not establish cross-language communication.
+Cross-language integration is introduced only where a concrete boundary needs
+it.
 
-Each component will initially be developed and tested independently.
+The current .NET-to-C++ controller integration is in-process:
 
-This allows the project to establish correct domain behavior before introducing
-integration complexity.
+```text
+ASP.NET Core
+    │
+    ▼
+Application abstraction
+    │
+    ▼
+Native gateway
+    │
+    ▼
+C ABI
+    │
+    ▼
+C++ controller
+```
 
-A later Architecture Decision Record will evaluate the communication mechanism
-between Python, C++, C and ASP.NET Core.
+The application layer depends on `IControllerGateway`, not on native APIs.
+
+This preserves the option to replace the infrastructure implementation later
+with another transport such as IPC or a separate service without redesigning
+the application use case.
+
+The C++ controller continues to interact with the C hardware abstraction layer
+through native C/C++ interfaces.
+
+Python integration remains independent and has not yet been connected directly
+to the ASP.NET Core backend.
 
 ## Error handling
 
@@ -228,28 +272,36 @@ Each component should:
 
 ## Testing approach
 
-Each component must support automated testing.
+Each component supports automated testing.
 
-The initial testing strategy includes:
+The current testing strategy includes:
 
 - Python unit tests with pytest
-- Static type checking with mypy
-- Linting with Ruff
-- C++ unit tests in a later milestone
-- C unit tests in a later milestone
-- .NET unit and integration tests in a later milestone
-- Cross-component integration tests after communication is introduced
+- Python static type checking with mypy
+- Python linting with Ruff
+- C++ unit and integration tests with Catch2
+- C++ test execution through CTest
+- Native C tests through CTest
+- .NET unit and integration tests with xUnit
+- ASP.NET Core application startup tests
+- HTTP endpoint integration tests
+- Native runtime interoperability tests
+- End-to-end HTTP-to-C++ controller testing
+- GitHub Actions quality workflows for Python, C, C++ and backend code
 
 ## Deployment approach
 
-The initial development environment is local.
+The project currently supports local Windows development and automated
+Linux-based validation through GitHub Actions.
+
+The backend and native controller are currently validated as development and
+CI components rather than as a production deployment.
 
 Later milestones will introduce:
 
 - Docker containers
 - Docker Compose
-- Linux builds
-- GitHub Actions
+- Native-library packaging for deployment
 - Azure deployment
 - Centralized logs
 - Metrics and monitoring
