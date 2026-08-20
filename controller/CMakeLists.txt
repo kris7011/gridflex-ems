@@ -8,6 +8,7 @@ project(
 )
 
 include(CTest)
+include(GNUInstallDirs)
 
 option(
     GRIDFLEX_BUILD_BENCHMARKS
@@ -84,6 +85,23 @@ target_link_libraries(
     gridflex_controller_native
     PRIVATE
         gridflex_controller
+)
+
+install(
+    TARGETS
+        gridflex_controller_native
+
+    RUNTIME
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT runtime
+
+    LIBRARY
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT runtime
+
+    ARCHIVE
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT development
 )
 
 add_executable(

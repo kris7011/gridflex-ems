@@ -44,8 +44,15 @@ jobs:
                   --target gridflex_controller_native
                   --parallel
 
-            - name: Verify native controller library
-              run: test -f controller/build/libgridflex_controller_native.so
+            - name: Install native controller runtime
+              run: >-
+                  cmake
+                  --install controller/build
+                  --prefix controller/package
+                  --component runtime
+
+            - name: Verify installed native controller library
+              run: test -f controller/package/lib/libgridflex_controller_native.so
 
             - name: Restore backend
               run: dotnet restore backend/GridFlex.slnx
@@ -66,7 +73,7 @@ jobs:
 
             - name: Test backend
               env:
-                  LD_LIBRARY_PATH: ${{ github.workspace }}/controller/build
+                  LD_LIBRARY_PATH: ${{ github.workspace }}/controller/package/lib
               run: >-
                   dotnet test
                   backend/GridFlex.slnx
