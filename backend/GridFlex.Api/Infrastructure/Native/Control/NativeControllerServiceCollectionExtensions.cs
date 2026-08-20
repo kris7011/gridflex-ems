@@ -57,6 +57,12 @@ internal static class NativeControllerServiceCollectionExtensions
         return new NativeControllerGateway(limits);
       });
 
+    services
+      .AddHealthChecks()
+      .AddCheck<NativeControllerReadinessHealthCheck>(
+        "native_controller",
+        tags: ["ready"]);
+
     return services;
   }
 }
