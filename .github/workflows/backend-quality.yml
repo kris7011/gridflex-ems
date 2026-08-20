@@ -79,3 +79,45 @@ jobs:
                   backend/GridFlex.slnx
                   --configuration Release
                   --no-build
+
+            - name: Package Linux backend runtime
+              run: bash backend/scripts/package-linux-runtime.sh
+
+            - name: Smoke test packaged Linux backend
+              env:
+                  LD_LIBRARY_PATH: ${{ github.workspace }}/backend/dist/linux-x64/lib
+              run: |
+                  set -euo pipefail
+
+                  dotnet backend/dist/linux-x64/app/GridFlex.Api.dll \
+                      --urls http://127.0.0.1:5080 \
+                      > backend-runtime.log 2>&1 &
+                  api_pid=$!
+
+                  cleanup() {
+                      kill "${api_pid}" 2>/dev/null || true
+                  }
+
+                  trap cleanup EXIT
+
+                  for attempt in $(seq 1 30); do
+                      if curl --fail --silent --show-error \
+                          http://127.0.0.1:5080/health/live \
+                          > /dev/null; then
+                          break
+                      fi
+
+                      if [[ "${attempt}" -eq 30 ]]; then
+                          cat backend-runtime.log
+                          exit 1
+                      fi
+
+                      sleep 1
+                  done
+
+                  if ! curl --fail --silent --show-error \
+                      http://127.0.0.1:5080/health/ready \
+                      > /dev/null; then
+                      cat backend-runtime.log
+                      exit 1
+                  fi
