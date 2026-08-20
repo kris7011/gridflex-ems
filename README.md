@@ -1,1015 +1,756 @@
 # GridFlex EMS
 
 GridFlex EMS is an independent portfolio and learning project that demonstrates
-the architecture and incremental development of a modular Energy Management
-System.
+the incremental development of a modular Energy Management System across
+multiple programming languages and technical layers.
 
-The system simulates and coordinates energy flows between:
+The project combines:
 
-* A Battery Energy Storage System, also known as BESS
-* Solar power generation
-* The electrical grid
-* Building energy consumption
-* Electric vehicle chargers in a later milestone
+- C# and ASP.NET Core for APIs and application coordination
+- C++ for deterministic and performance-oriented control logic
+- C for hardware-facing abstractions
+- Python for simulation and reproducible energy scenarios
+- GitHub Actions for automated quality validation
+- Linux and Windows for cross-platform development and testing
 
-The project focuses on software architecture, reliability, performance,
-automated testing, observability, defensive programming and communication
-between components written in different programming languages.
+The current implementation includes a complete HTTP-to-native control path:
+
+```text
+HTTP client
+    │
+    ▼
+ASP.NET Core API
+    │
+    ▼
+Application service
+    │
+    ▼
+IControllerGateway
+    │
+    ▼
+NativeControllerGateway
+    │
+    ▼
+LibraryImport
+    │
+    ▼
+Versioned C ABI
+    │
+    ▼
+C++ EnergyController
+```
+
+The project is educational and does not control real electrical equipment.
+
+---
 
 ## Project purpose
 
-The purpose of GridFlex EMS is to demonstrate how a larger technical software
-solution can be divided into components with clear responsibilities and explicit
-interfaces.
+GridFlex EMS demonstrates how a larger technical software system can be divided
+into components with explicit responsibilities, testable boundaries and
+documented architectural decisions.
 
 The project is also used as a structured learning environment for technologies
-commonly used in industrial, embedded and energy-related software development.
+commonly found in:
 
-The currently implemented core components use:
+- Backend development
+- Industrial software
+- Embedded systems
+- Energy systems
+- Native interoperability
+- Cloud and DevOps environments
 
-* Python
-* C++
-* C
+The system is developed incrementally so that each architectural decision and
+implementation step can be explained and justified.
 
-A future backend milestone will introduce:
-
-* C# and ASP.NET Core
-
-The project is developed incrementally so that each architectural decision,
-implementation step and technology choice can be explained and justified.
+---
 
 ## Project goals
 
 GridFlex EMS is designed to demonstrate practical experience with:
 
-* C# and ASP.NET Core
-* Python
-* C++
-* C
-* Linux
-* Docker
-* GitHub Actions
-* Microsoft Azure
-* REST APIs
-* Software architecture
-* Automated testing
-* Static code analysis
-* Observability
-* Performance measurement
-* Cross-language communication
-* Defensive programming
-* Technical documentation
+- C# and ASP.NET Core
+- REST APIs
+- Application architecture
+- Dependency injection
+- Native interoperability
+- C++20
+- C17
+- Python
+- CMake
+- Linux
+- Windows
+- GitHub Actions
+- Docker
+- Microsoft Azure
+- Automated testing
+- Static analysis
+- Defensive programming
+- Performance measurement
+- Observability
+- Cross-language communication
+- Technical documentation
+- Architecture Decision Records
+
+---
 
 ## System overview
 
-GridFlex EMS models a simplified energy installation.
+GridFlex EMS models a simplified energy installation containing:
 
-The installation contains:
+- Solar generation
+- Battery Energy Storage System, also known as BESS
+- Building consumption
+- Electrical grid connection
+- Electric vehicle chargers in a later milestone
 
-* A solar power source
-* A battery storage system
-* A connection to the electrical grid
-* A building with varying energy consumption
-* One or more electric vehicle chargers in a later milestone
+The system works with energy measurements and determines how the installation
+should react.
 
-The system receives or produces measurements from these energy assets and
-determines how energy should be distributed.
+Example decisions include:
 
-Examples of system decisions include:
+- Charge the battery when generation exceeds consumption
+- Discharge the battery when consumption exceeds generation
+- Respect configured battery operating limits
+- Respect maximum charging and discharging power
+- Import energy from the grid when required by later control strategies
+- Export surplus energy when required by later control strategies
+- Reject invalid or inconsistent measurements
+- Report system readiness and dependency failures
 
-* Charging the battery when solar production exceeds local consumption
-* Discharging the battery when local consumption exceeds solar production
-* Importing energy from the electrical grid when local energy is insufficient
-* Exporting surplus energy when the battery is fully charged
-* Reducing energy usage when system limits are reached
-* Stopping battery activity if unsafe operating conditions are detected
+---
 
-## Planned architecture
+## Current architecture
 
 ```text
 ┌─────────────────────────────────────────────┐
-│              Frontend Dashboard             │
+│             Frontend Dashboard              │
+│               Future milestone              │
 └──────────────────────┬──────────────────────┘
                        │
-                       │ HTTP
+                       │ HTTP / JSON
                        ▼
 ┌─────────────────────────────────────────────┐
 │             ASP.NET Core API                │
 │                                             │
 │  - System status                            │
-│  - Commands                                 │
+│  - Control decision endpoint                │
 │  - Application coordination                │
-│  - Logging and observability                │
+│  - Liveness / readiness                     │
+│  - Configuration                            │
 └──────────────────────┬──────────────────────┘
                        │
-                       │ Application messages
+                       │ Application boundary
                        ▼
 ┌─────────────────────────────────────────────┐
-│         Energy Management Components        │
+│          IControlDecisionService            │
+│          IControllerGateway                 │
+└──────────────────────┬──────────────────────┘
+                       │
+                       │ Managed/native boundary
+                       ▼
+┌─────────────────────────────────────────────┐
+│         NativeControllerGateway             │
 │                                             │
-│  Python Simulation Engine                   │
-│  C++ Real-Time Controller                   │
-│  C Hardware Abstraction Layer               │
+│  LibraryImport                              │
+│  SafeHandle                                 │
+│  ABI validation                             │
+│  Explicit mapping                          │
+└──────────────────────┬──────────────────────┘
+                       │
+                       │ Versioned C ABI
+                       ▼
+┌─────────────────────────────────────────────┐
+│             C++ Controller                  │
+│                                             │
+│  - EnergyMeasurement                       │
+│  - ControllerLimits                        │
+│  - EnergyController                        │
+│  - ControlCommand                          │
+└──────────────────────┬──────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────┐
+│        C Hardware Abstraction Layer         │
+│                                             │
+│  - Sensors                                  │
+│  - Actuators                                │
+│  - Simulated devices                        │
+│  - Error normalization                     │
 └─────────────────────────────────────────────┘
 ```
 
-## Component responsibilities
+The Python simulation engine remains independently testable and currently acts
+as the simulation and reference-behavior component.
 
-### ASP.NET Core API
+Python-to-backend integration is a later architectural step.
 
-The ASP.NET Core API is planned to be responsible for:
+---
 
-* Exposing system status through REST endpoints
-* Receiving commands from users or external systems
-* Coordinating application-level use cases
-* Exposing health checks
-* Providing structured logging
-* Exposing metrics later in the project
-* Integrating with simulation and controller components
-* Supporting authentication and authorization in a later milestone
+# Component responsibilities
 
-The ASP.NET Core backend is introduced in Milestone 5.
+## ASP.NET Core API
 
-### Python simulation engine
+The ASP.NET Core backend is responsible for:
+
+- Exposing HTTP APIs
+- Providing explicit request and response contracts
+- Coordinating application-level use cases
+- Exposing system status
+- Exposing health checks
+- Providing liveness and readiness information
+- Managing controller configuration
+- Validating startup configuration
+- Integrating with the native controller
+- Translating application failures into appropriate HTTP responses
+- Keeping native implementation details outside the application layer
+
+The current backend implementation includes:
+
+- ASP.NET Core on .NET 10
+- Minimal API endpoints
+- `IControlDecisionService`
+- `ControlDecisionService`
+- `IControllerGateway`
+- `NativeControllerGateway`
+- Strongly typed controller configuration
+- Startup configuration validation
+- Source-generated `LibraryImport`
+- `SafeHandle`-based native lifetime management
+- Native ABI version validation
+- Explicit managed/native structure mapping
+- Liveness health checks
+- Native-controller readiness checks
+- HTTP-to-C++ controller integration
+- Explicit API contracts
+- `ProblemDetails` responses for invalid measurements
+- xUnit tests
+- ASP.NET Core integration tests
+- GitHub Actions backend quality validation
+
+The managed/native integration decision is documented in:
+
+[ADR 0002: Use a C ABI for .NET to C++ controller interoperability](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
+
+---
+
+## Python simulation engine
 
 The Python simulation engine is responsible for:
 
-* Simulating solar power generation
-* Simulating building energy consumption
-* Simulating battery behavior
-* Simulating grid import and export
-* Calculating energy balance
-* Coordinating simplified battery-first energy management
-* Running multi-step simulation timelines
-* Creating reproducible operating scenarios
-* Producing immutable measurement data
-* Supporting experiments and energy analysis
-* Testing energy behavior before and alongside controller development
-
-The detailed Python simulation architecture is documented in:
-
-[Python Simulation Architecture](docs/simulation-architecture.md)
-
-### C++ controller
-
-The C++ controller is responsible for:
-
-* Receiving validated energy measurements
-* Evaluating operating conditions
-* Making deterministic control decisions
-* Producing explicit control commands
-* Applying safety and operating limits
-* Keeping decision logic separate from hardware I/O
-* Translating controller output into hardware-facing commands through a dedicated
-  execution boundary
-* Demonstrating performance-oriented software development
-* Providing independently testable control behavior
-
-The current C++ implementation includes:
-
-* A CMake-based C++20 project
-* A reusable static controller library
-* A small controller CLI executable
-* An explicit `EnergyMeasurement` input model
-* Defensive validation of measurement invariants
-* Immutable-by-interface measurement state
-* An explicit `ControlCommand` output model
-* Strongly typed `ControlAction` values
-* Defensive validation of command invariants
-* Source-step metadata for measurement-to-command traceability
-* Deterministic surplus, deficit and balanced-energy control rules
-* Conversion from interval energy in kWh to requested power in kW
-* A floating-point balance tolerance around zero
-* Validated `ControllerLimits` configuration
-* Configurable maximum charge and discharge power
-* Configurable minimum and maximum battery state-of-charge boundaries
-* Charge limiting based on remaining battery capacity
-* Discharge limiting based on minimum battery reserve
-* A dedicated `HardwareCommandExecutor`
-* A `HardwareExecutionResult` containing separate battery and grid results
-* Explicit translation from C++ control actions to C actuator actions
-* Explicit idle commands for non-target actuators
-* Normalized C hardware errors exposed back to the C++ layer
-* Integration with the C hardware static library
-* A mixed C/C++ CMake build
-* End-to-end testing from `EnergyMeasurement` through the C++ controller into
-  simulated C hardware
-* A dedicated controller microbenchmark executable
-* Optional benchmark builds through CMake
-* Release-oriented benchmark measurements
-* Surplus, deficit and balanced-decision benchmark cases
-* Benchmark result consumption through a checksum
-* Linux benchmark smoke-test execution through GitHub Actions
-* Catch2 unit and integration tests
-* CTest integration
-* Windows Debug and Release builds using MSVC
-* Linux builds through GitHub Actions
-* Automated C++ build, test and smoke-test validation
-
-### C hardware abstraction layer
-
-The C hardware abstraction layer is responsible for:
-
-* Representing low-level sensors
-* Representing actuators
-* Providing driver-like callback interfaces
-* Hiding hardware-specific details from the controller
-* Providing explicit status codes instead of exceptions
-* Simulating communication with physical equipment
-* Supporting failure injection for testing
-* Normalizing hardware errors
-* Providing a C-compatible boundary that can be consumed from C++
-* Introducing embedded and low-level software concepts
-
-The current C implementation includes:
-
-* A C17 CMake project
-* A reusable `gridflex_hardware` static library
-* A small hardware CLI executable
-* A generic sensor interface
-* A generic actuator interface
-* Function-pointer-based driver callbacks
-* Opaque `void *context` device state
-* Explicit sensor status codes
-* Explicit actuator status codes
-* Explicit actuator action compatibility rules
-* Defensive validation before callbacks are invoked
-* Simulated sensor devices
-* Simulated actuator devices
-* Configurable simulated read failures
-* Configurable simulated apply failures
-* Sensor read-attempt tracking
-* Actuator apply-attempt tracking
-* Last successful actuator command tracking
-* A normalized `GridFlexHardwareError` model
-* Mapping from sensor and actuator statuses into common hardware errors
-* C++ compatible public C headers using `extern "C"`
-* Native C tests registered through CTest
-* Windows builds using MSVC
-* Linux build and test validation through GitHub Actions
-
-## Repository structure
-
-```text
-gridflex-ems/
-├── .github/
-│   └── workflows/
-│       ├── c-quality.yml
-│       ├── cpp-quality.yml
-│       └── python-quality.yml
-│
-├── backend/
-│   └── ASP.NET Core API and application services
-│
-├── controller/
-│   ├── benchmarks/
-│   │   └── energy_controller_benchmark.cpp
-│   ├── include/
-│   │   └── gridflex/
-│   │       └── controller/
-│   │           ├── control_command.hpp
-│   │           ├── controller.hpp
-│   │           ├── controller_limits.hpp
-│   │           ├── energy_controller.hpp
-│   │           ├── energy_measurement.hpp
-│   │           └── hardware_command_executor.hpp
-│   ├── src/
-│   │   ├── control_command.cpp
-│   │   ├── controller.cpp
-│   │   ├── controller_limits.cpp
-│   │   ├── energy_controller.cpp
-│   │   ├── energy_measurement.cpp
-│   │   ├── hardware_command_executor.cpp
-│   │   └── main.cpp
-│   ├── tests/
-│   │   ├── control_command_tests.cpp
-│   │   ├── controller_limits_tests.cpp
-│   │   ├── energy_controller_tests.cpp
-│   │   ├── energy_measurement_tests.cpp
-│   │   └── hardware_command_executor_tests.cpp
-│   └── CMakeLists.txt
-│
-├── docker/
-│   └── Dockerfiles and container configuration
-│
-├── docs/
-│   ├── decisions/
-│   │   └── Architecture Decision Records
-│   ├── architecture.md
-│   └── simulation-architecture.md
-│
-├── hardware/
-│   ├── include/
-│   │   └── gridflex/
-│   │       └── hardware/
-│   │           ├── actuator.h
-│   │           ├── error.h
-│   │           ├── hardware.h
-│   │           ├── sensor.h
-│   │           ├── simulated_actuator.h
-│   │           └── simulated_sensor.h
-│   ├── src/
-│   │   ├── actuator.c
-│   │   ├── error.c
-│   │   ├── hardware.c
-│   │   ├── main.c
-│   │   ├── sensor.c
-│   │   ├── simulated_actuator.c
-│   │   └── simulated_sensor.c
-│   ├── tests/
-│   │   ├── actuator_tests.c
-│   │   ├── error_tests.c
-│   │   ├── sensor_tests.c
-│   │   ├── simulated_actuator_tests.c
-│   │   └── simulated_sensor_tests.c
-│   └── CMakeLists.txt
-│
-├── scripts/
-│   └── Development, build and automation scripts
-│
-├── simulation/
-│   ├── src/
-│   ├── tests/
-│   └── pyproject.toml
-│
-├── .clang-format
-├── .editorconfig
-├── .gitignore
-├── LICENSE
-└── README.md
-```
-
-## Cross-language data flow
-
-The planned system-wide data flow is:
-
-```text
-Python Simulation Engine
-          │
-          │ EnergyMeasurement
-          ▼
-C++ Energy Controller
-          │
-          │ ControlCommand
-          ▼
-C Hardware Abstraction Layer
-          │
-          │ Equipment state
-          ▼
-ASP.NET Core API
-          │
-          │ System status
-          ▼
-Frontend Dashboard
-```
-
-The controller-to-hardware part of this flow is now implemented directly.
-
-The current native integration path is:
-
-```text
-EnergyMeasurement
-        │
-        ▼
-EnergyController::decide()
-        │
-        ▼
-ControlCommand
-        │
-        ▼
-HardwareCommandExecutor::execute()
-        │
-        ▼
-GridFlexActuator
-        │
-        ▼
-C hardware callback
-        │
-        ▼
-Simulated C device
-```
-
-The communication mechanism between the larger Python, native C/C++ and future
-C# components has not yet been selected.
-
-Possible communication mechanisms include:
-
-* HTTP
-* gRPC
-* Message queues
-* Shared libraries
-* Standard input and output streams
-* Local sockets
-
-The transport mechanism is intentionally kept separate from the domain
-contracts.
-
-This allows the simulation, controller and hardware layers to evolve around
-explicit measurement, command and device contracts before a system-wide
-communication technology is selected.
-
-## Current status
-
-Milestone 1, Milestone 2, Milestone 3 and Milestone 4 are complete.
-
-Milestone 5 is the next planned development milestone.
-
-The Python simulation supports:
-
-* Battery charging and discharging
-* Solar energy generation
-* Building energy consumption
-* Energy balance calculation
-* Battery-first energy dispatch
-* Grid import and export
-* Configurable grid transfer limits
-* Grid availability scenarios
-* Multi-step simulation timelines
-* Stateful battery behavior across simulation steps
-* Immutable energy measurement snapshots
-* Reproducible scenario configuration and execution
-* Defensive input validation
-* Automated unit tests
-* Static type checking
-* Linting
-* Test coverage
-* GitHub Actions quality checks
-
-The C++ controller currently supports:
-
-* C++20 project configuration through CMake
-* A reusable controller library
-* A CLI executable
-* Explicit energy measurement input
-* Defensive measurement validation
-* Signed grid import/export measurement calculation
-* Explicit control-command output modelling
-* Strongly typed controller actions
-* Defensive control-command validation
-* Source-step metadata on generated control commands
-* Deterministic surplus, deficit and balanced-energy decisions
-* Requested-power calculation from interval energy
-* Floating-point tolerance for near-zero energy balances
-* Validated controller operating-limit configuration
-* Maximum battery charge-power limiting
-* Maximum battery discharge-power limiting
-* Minimum battery state-of-charge protection
-* Maximum battery state-of-charge protection
-* SOC-aware charge and discharge limiting
-* Explicit controller-to-hardware execution
-* Complete-state battery and grid actuator commands
-* Separate battery and grid hardware execution results
-* Common hardware-error normalization
-* Defensive rejection of unknown controller actions before hardware access
-* Integration with simulated C actuator devices
-* End-to-end controller-to-hardware integration testing
-* A dedicated performance benchmark executable
-* Release-oriented controller microbenchmarks
-* Surplus, deficit and balanced-decision benchmark cases
-* Benchmark timing through `std::chrono::steady_clock`
-* Benchmark warmup and repeated measured iterations
-* Automated unit and integration testing with Catch2
-* 47 discovered Catch2 test cases
-* 148 Catch2 assertions in the current local validation baseline
-* Debug and Release builds with MSVC on Windows
-* Automated Linux builds, tests and benchmark smoke testing through GitHub Actions
-
-The C hardware layer currently supports:
-
-* C17 project configuration through CMake
-* A reusable C static library
-* A hardware CLI executable
-* Generic sensor interfaces
-* Generic actuator interfaces
-* Sensor driver callbacks
-* Actuator driver callbacks
-* Opaque callback contexts
-* Explicit sensor types
-* Explicit actuator types
-* Explicit actuator actions
-* Defensive interface validation
-* Simulated sensors
-* Simulated actuators
-* Failure injection
-* Hardware-operation counters
-* Last-successful-command state
-* Normalized sensor and actuator hardware errors
-* C++ compatible public headers
-* Native C test executables
-* CTest integration
-* Automated Linux C quality validation through GitHub Actions
-
-The complete mixed-language C/C++ build currently validates:
-
-```text
-47 Catch2 test cases
-5 native C CTest targets
-52 total tests through the integrated controller CTest build
-148 Catch2 assertions
-0 failing tests
-```
+- Simulating solar generation
+- Simulating building consumption
+- Simulating battery behavior
+- Simulating grid import and export
+- Calculating energy balance
+- Coordinating battery-first energy management
+- Running multi-step simulation timelines
+- Creating reproducible scenarios
+- Producing immutable measurement snapshots
+- Supporting experiments and energy analysis
 
 The detailed Python architecture is documented in:
 
 [Python Simulation Architecture](docs/simulation-architecture.md)
 
-## Current Python simulation flow
+---
 
-The Python simulation currently follows this high-level flow:
+## C++ controller
+
+The C++ controller is responsible for:
+
+- Receiving validated energy measurements
+- Evaluating operating conditions
+- Producing deterministic control decisions
+- Applying operating limits
+- Producing explicit control commands
+- Keeping decision logic separate from hardware I/O
+- Providing a native API consumable by the .NET backend
+- Demonstrating performance-oriented development
+
+The implementation includes:
+
+- C++20
+- CMake
+- Reusable controller library
+- Controller CLI
+- `EnergyMeasurement`
+- `ControlCommand`
+- `ControlAction`
+- `ControllerLimits`
+- `EnergyController`
+- `HardwareCommandExecutor`
+- Defensive validation
+- State-of-charge protection
+- Charge and discharge power limits
+- Native shared-library adapter
+- Versioned C ABI
+- Catch2 tests
+- CTest integration
+- Performance microbenchmarks
+- Linux GitHub Actions validation
+- Windows MSVC builds
+
+---
+
+## C hardware abstraction layer
+
+The C hardware layer represents low-level hardware-facing concepts.
+
+Responsibilities include:
+
+- Generic sensor interfaces
+- Generic actuator interfaces
+- Driver-style callback functions
+- Opaque device contexts
+- Explicit status codes
+- Simulated devices
+- Failure injection
+- Hardware error normalization
+- C/C++ interoperability
+
+The implementation includes:
+
+- C17
+- CMake
+- Reusable static library
+- Hardware CLI
+- Sensor callbacks
+- Actuator callbacks
+- Simulated sensors
+- Simulated actuators
+- Failure injection
+- Operation counters
+- Last-successful-command state
+- `GridFlexHardwareError`
+- CTest integration
+- Linux and Windows validation
+
+---
+
+# HTTP API
+
+## System status
 
 ```text
-SimulationScenario
+GET /api/system/status
+```
+
+Returns basic information about the running API.
+
+Example response:
+
+```json
+{
+  "service": "GridFlex.Api",
+  "status": "healthy",
+  "environment": "Development"
+}
+```
+
+---
+
+## Liveness
+
+```text
+GET /health/live
+```
+
+Liveness answers:
+
+```text
+Is the ASP.NET Core process alive?
+```
+
+The endpoint deliberately does not execute native dependency health checks.
+
+A native controller failure should therefore not automatically make the process
+appear dead.
+
+---
+
+## Readiness
+
+```text
+GET /health/ready
+```
+
+Readiness answers:
+
+```text
+Is this application instance ready to receive traffic?
+```
+
+The native-controller readiness check resolves `IControllerGateway`.
+
+That causes the managed/native integration to verify:
+
+```text
+IControllerGateway
         │
-        │ configuration
         ▼
-SimulationScenarioRunner
-        │
-        │ creates fresh runtime components
-        ▼
-SimulationTimelineRunner
-        │
-        │ executes chronological intervals
-        ▼
-EnergyManagementService
-        │
-        ├── EnergyBalanceCalculator
-        ├── BatteryDispatchService
-        └── GridConnection
+NativeControllerGateway
         │
         ▼
-EnergyMeasurementFactory
+Native library loading
         │
         ▼
-EnergyMeasurement
+ABI version validation
         │
         ▼
-SimulationScenarioResult
+Native controller creation
 ```
 
-The design separates:
-
-* Configuration from mutable runtime state
-* Energy calculations from coordination
-* Internal simulation results from external measurement data
-* Timeline execution from individual energy-management decisions
-
-## Battery model
-
-The current battery model supports:
-
-* Total capacity measured in kilowatt-hours
-* Current state of charge
-* Available storage capacity
-* Charging
-* Discharging
-* State-of-charge calculation
-* Validation of invalid battery states
-
-The battery is intentionally mutable because its state of charge changes during
-a running simulation.
-
-Later versions may include:
-
-* Charging efficiency
-* Discharging efficiency
-* Maximum charging power
-* Maximum discharging power
-* Battery temperature
-* Battery degradation
-* Minimum and maximum state-of-charge limits
-* Emergency shutdown behavior
-
-## Solar generation model
-
-The solar model calculates energy generation based on:
-
-* Installed capacity
-* Irradiance factor
-* Performance ratio
-* Simulation interval
-
-The model is intentionally simplified and deterministic.
-
-It provides predictable energy values that can be used when testing later
-control strategies.
-
-## Building consumption model
-
-The building model calculates consumption based on:
-
-* Base load
-* Peak load
-* Activity factor
-* Simulation interval
-
-This allows scenarios to represent changing building demand over time.
-
-## Energy balance
-
-The energy balance component compares generated and consumed energy.
-
-The result is classified as:
-
-* Surplus
-* Deficit
-* Balanced
-
-The calculator is stateless.
-
-It determines the energy situation but does not decide how the system should
-respond.
-
-## Battery dispatch
-
-The battery dispatch service applies surplus or deficit energy to the battery.
-
-It records:
-
-* Requested energy
-* Actually transferred energy
-* Remaining energy
-* Initial battery state of charge
-* Final battery state of charge
-
-This makes battery constraints and state changes explicit.
-
-## Grid connection model
-
-The grid model supports:
-
-* Importing energy
-* Exporting energy
-* Maximum import power
-* Maximum export power
-* Grid availability
-* Transfer limits based on simulation interval
-
-Power limits are configured in kilowatts.
-
-The amount of transferable energy depends on both power and time:
+Expected behavior:
 
 ```text
-energy = power × time
+Normal operation
+
+/health/live   → 200 Healthy
+/health/ready  → 200 Healthy
 ```
 
-For example:
+If the native controller cannot be initialized:
 
 ```text
-50 kW × 0.5 hours = 25 kWh
+Native dependency unavailable
+
+/health/live   → 200 Healthy
+/health/ready  → 503 Unhealthy
 ```
 
-## Energy management
+---
 
-The current simplified Python energy-management strategy is battery-first.
-
-For surplus energy:
+## Control decision
 
 ```text
-Solar surplus
-      │
-      ▼
-Charge battery
-      │
-      ▼
-Remaining surplus
-      │
-      ▼
-Export to grid
+POST /api/control/decision
 ```
 
-For an energy deficit:
+Example request:
+
+```json
+{
+  "stepNumber": 42,
+  "elapsedTimeHours": 1.0,
+  "intervalHours": 0.25,
+  "generatedEnergyKwh": 5.0,
+  "consumedEnergyKwh": 2.0,
+  "netEnergyKwh": 3.0,
+  "batteryStateOfChargeKwh": 10.0,
+  "gridImportEnergyKwh": 0.0,
+  "gridExportEnergyKwh": 0.0,
+  "unresolvedEnergyKwh": 0.0
+}
+```
+
+Example response:
+
+```json
+{
+  "sourceStepNumber": 42,
+  "action": "ChargeBattery",
+  "requestedPowerKw": 10.0
+}
+```
+
+For this example:
 
 ```text
-Energy deficit
-      │
-      ▼
-Discharge battery
-      │
-      ▼
-Remaining deficit
-      │
-      ▼
-Import from grid
+Net surplus:       3.0 kWh
+Interval:          0.25 h
+
+Requested power:
+3.0 / 0.25 = 12.0 kW
+
+Configured maximum charge power:
+10.0 kW
+
+Result:
+ChargeBattery
+10.0 kW
 ```
 
-This coordination is implemented separately from the individual battery and
-grid models.
-
-The Python strategy currently acts as the simulation and reference behavior.
-
-The C++ controller is developed separately so that control decisions can be
-implemented, tested and measured independently.
-
-## Simulation timeline
-
-The simulation timeline executes multiple energy intervals in chronological
-order.
-
-A simulation step currently contains:
-
-* Irradiance factor
-* Building activity factor
-* Interval duration
-
-The same battery runtime instance is reused throughout one timeline.
-
-This allows state of charge to evolve between steps.
-
-Example:
+Invalid energy measurements return:
 
 ```text
-Step 1
-Battery: 40.0 → 50.5 kWh
-              │
-              ▼
-Step 2
-Battery: 50.5 → 0.0 kWh
-              │
-              ▼
-Step 3
-Battery: 0.0 → 60.0 kWh
+400 Bad Request
 ```
 
-## Energy measurements
+using `ProblemDetails`.
 
-The simulation produces immutable measurement snapshots after each interval.
+---
 
-A measurement currently contains:
+# End-to-end controller flow
 
-* Step number
-* Elapsed simulation time
-* Interval duration
-* Generated energy
-* Consumed energy
-* Net energy
-* Battery state of charge
-* Grid import energy
-* Grid export energy
-* Unresolved energy
-
-The measurement model creates an explicit boundary between internal simulation
-behavior and data intended for other components.
-
-The planned direction is:
+A successful HTTP request executes the following path:
 
 ```text
-Python internal simulation
-          │
-          ▼
-EnergyMeasurement
-          │
-          ├── C++ controller
-          ├── ASP.NET Core API
-          ├── Logging
-          ├── Metrics
-          └── Analysis
+HTTP POST
+    │
+    ▼
+JSON deserialization
+    │
+    ▼
+ControlDecisionRequest
+    │
+    ▼
+EnergyMeasurementInput
+    │
+    ▼
+IControlDecisionService
+    │
+    ▼
+ControlDecisionService
+    │
+    ▼
+IControllerGateway
+    │
+    ▼
+NativeControllerGateway
+    │
+    ▼
+LibraryImport
+    │
+    ▼
+C ABI
+    │
+    ▼
+C++ adapter
+    │
+    ▼
+EnergyController
+    │
+    ▼
+ControlDecision
+    │
+    ▼
+ControlDecisionResponse
+    │
+    ▼
+HTTP JSON
 ```
 
-The exact serialization format and transport mechanism have not yet been
-selected.
+Native ABI types are never exposed through the HTTP contract.
 
-## C++ measurement input
+---
 
-The C++ controller contains its own `EnergyMeasurement` domain type.
+# Managed-to-native interoperability
 
-The C++ type represents the controller-side measurement contract rather than
-depending directly on Python runtime objects.
+The .NET backend communicates with the C++ controller through an in-process
+native shared library.
 
-The current measurement contains:
-
-* Step number
-* Elapsed time
-* Interval duration
-* Generated energy
-* Consumed energy
-* Net energy
-* Battery state of charge
-* Grid import energy
-* Grid export energy
-* Unresolved energy
-
-The measurement validates its invariants during construction.
-
-Examples of rejected input include:
-
-* Step number equal to zero
-* Non-positive time intervals
-* Negative energy values where only non-negative values are valid
-* NaN or infinite numeric values
-* Simultaneous positive grid import and grid export
-
-The model also exposes signed grid energy:
+The boundary is a small versioned C ABI.
 
 ```text
-grid net energy = grid import - grid export
+ASP.NET Core
+    │
+    ▼
+ControlDecisionService
+    │
+    ▼
+IControllerGateway
+    │
+    ▼
+NativeControllerGateway
+    │
+    ▼
+LibraryImport
+    │
+    ▼
+C ABI
+    │
+    ▼
+C++ adapter
+    │
+    ▼
+EnergyController
 ```
 
-Examples:
+The application layer does not know about:
 
-```text
-Import 10 kWh, export 0 kWh  → +10 kWh
-Import 0 kWh, export 8 kWh   →  -8 kWh
-```
+- Native library names
+- P/Invoke declarations
+- Native handles
+- C-compatible structures
+- ABI implementation details
+- C++ classes
 
-The C++ measurement state is private and exposed through const accessors.
+Those concerns remain inside Infrastructure.
 
-This means that once a valid measurement has been constructed, callers cannot
-directly mutate its fields into an invalid state.
+---
 
-The measurement model therefore establishes the validated input boundary for
-the controller:
+## Why a C ABI?
 
-```text
-External measurement data
-          │
-          ▼
-Validated EnergyMeasurement
-          │
-          ▼
-C++ controller
-```
+Direct C++ ABI interoperability was intentionally avoided because C++ ABI
+details may vary between:
 
-## C++ control commands
+- Compilers
+- Platforms
+- Toolchains
 
-The C++ controller contains an explicit `ControlCommand` output model.
+The C ABI provides a small and explicit interoperability contract.
 
-A control command represents an action that the controller can request after
-evaluating an energy measurement.
+The boundary avoids exposing:
 
-The currently defined actions are:
+- C++ classes
+- C++ references
+- C++ exceptions
+- Standard-library containers
 
-* Idle
-* Charge battery
-* Discharge battery
-* Import from grid
-* Export to grid
+Instead it uses:
 
-These actions are represented by the strongly typed C++ `ControlAction`
-enumeration.
+- Primitive values
+- Explicit structures
+- Numeric status codes
+- Opaque handles
 
-A control command contains:
+This decision is documented in:
 
-* The source measurement step number
-* A strongly typed control action
-* Requested power measured in kilowatts
+[ADR 0002](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
 
-The command direction and requested power magnitude are represented separately.
+---
 
-For example:
+## Native lifetime management
 
-```text
-Action:          ChargeBattery
-Requested power: 25 kW
-```
-
-rather than representing the same decision using signed power such as:
-
-```text
-+25 kW
-```
-
-or:
-
-```text
--25 kW
-```
-
-Keeping action and magnitude separate makes controller intent explicit and
-avoids requiring downstream components to interpret the sign of a numeric
-value.
-
-### Strongly typed control actions
-
-Control actions are represented through a C++ `enum class` instead of strings.
+The native controller is represented in .NET using `SafeHandle`.
 
 Conceptually:
 
 ```text
-ControlAction
-├── Idle
-├── ChargeBattery
-├── DischargeBattery
-├── ImportFromGrid
-└── ExportToGrid
+Dependency injection container
+        │
+        ▼
+NativeControllerGateway
+        │
+        ▼
+NativeControllerSafeHandle
+        │
+        ▼
+SafeHandle.Dispose()
+        │
+        ▼
+ReleaseHandle()
+        │
+        ▼
+gridflex_controller_destroy()
+        │
+        ▼
+delete native controller
 ```
 
-This provides:
+This avoids requiring application code to manually free native resources.
 
-* A restricted set of valid actions
-* Compile-time type checking
-* No string-based magic values
-* Clearer controller interfaces
-* Better editor and compiler assistance
-* Safer refactoring
+---
 
-### Control-command validation
+# C++ controller model
 
-The `ControlCommand` model validates its invariants during construction.
+## Energy measurements
 
-Examples of rejected commands include:
+The C++ controller has its own validated `EnergyMeasurement` domain type.
 
-* Source step number equal to zero
-* Negative requested power
-* NaN requested power
-* Infinite requested power
-* Idle commands requesting non-zero power
-* Active commands requesting zero power
+A measurement contains:
 
-An idle command is explicitly represented as:
+- Step number
+- Elapsed time
+- Interval duration
+- Generated energy
+- Consumed energy
+- Net energy
+- Battery state of charge
+- Grid import energy
+- Grid export energy
+- Unresolved energy
+
+Examples of rejected input include:
+
+- Step number equal to zero
+- Non-positive intervals
+- Negative values where only non-negative values are valid
+- NaN
+- Infinite values
+- Simultaneous grid import and export
+
+The measurement model creates a defensive input boundary:
 
 ```text
-Action:          Idle
-Requested power: 0 kW
+External data
+    │
+    ▼
+Validated EnergyMeasurement
+    │
+    ▼
+EnergyController
 ```
 
-An active command must request power greater than zero.
+---
 
-For example:
+## Control commands
+
+The controller produces an explicit `ControlCommand`.
+
+Current actions are:
 
 ```text
-Action:          DischargeBattery
+Idle
+ChargeBattery
+DischargeBattery
+ImportFromGrid
+ExportToGrid
+```
+
+A command contains:
+
+- Source measurement step number
+- Strongly typed control action
+- Requested power in kW
+
+Example:
+
+```text
+Source step:     42
+Action:          ChargeBattery
 Requested power: 20 kW
 ```
 
-is valid.
+Direction and magnitude are represented separately instead of using signed
+power values.
 
-The following is not:
+---
 
-```text
-Action:          DischargeBattery
-Requested power: 0 kW
-```
+## Measurement-to-command traceability
 
-### Measurement-to-command traceability
-
-Each command stores the source step number of the measurement used to create the
-command.
-
-For example:
+Every generated command keeps the source measurement step number.
 
 ```text
 EnergyMeasurement
-Step number: 42
-      │
-      ▼
+Step: 42
+    │
+    ▼
 EnergyController
-      │
-      ▼
+    │
+    ▼
 ControlCommand
-Source step:     42
-Action:          ChargeBattery
-Requested power: 25 kW
+Source step: 42
 ```
 
-The source-step metadata provides explicit traceability between controller input
-and output.
+This supports:
 
-It can support:
+- Debugging
+- Logging
+- Observability
+- Integration testing
+- Future auditing
+- Cross-component correlation
 
-* Debugging
-* Structured logging
-* Observability
-* Audit trails
-* Integration testing
-* Cross-component correlation
+The .NET application service also verifies that the returned source step matches
+the input measurement.
 
-The deterministic controller rules preserve the measurement step number when
-creating the resulting command.
+---
 
-### Controller domain boundary
+# Controller decision logic
 
-The controller has both an explicit validated input model and an explicit
-validated output model:
-
-```text
-EnergyMeasurement
-        │
-        │ validated input
-        ▼
-┌──────────────────┐
-│ EnergyController │
-└──────────────────┘
-        │
-        │ deterministic decision
-        ▼
-ControlCommand
-```
-
-This keeps input modelling, output modelling, decision logic and operating
-constraints as separate responsibilities.
-
-The controller can therefore operate on already valid measurements and produce
-commands that already satisfy command invariants.
-
-## Controller-to-hardware integration
-
-The C++ controller does not directly perform hardware I/O from
-`EnergyController::decide()`.
-
-Instead, hardware execution is separated into a dedicated
-`HardwareCommandExecutor`.
-
-The resulting architecture is:
+The current C++ controller uses deterministic battery-oriented rules.
 
 ```text
 EnergyMeasurement
@@ -1017,111 +758,146 @@ EnergyMeasurement
         ▼
 EnergyController
         │
-        │ deterministic decision
+        ├── Balanced → Idle
+        │
+        ├── Surplus  → ChargeBattery
+        │
+        └── Deficit  → DischargeBattery
+        │
+        ▼
+ControlCommand
+```
+
+A floating-point tolerance prevents tiny numeric residuals around zero from
+creating unnecessary commands.
+
+For active decisions:
+
+```text
+requested power kW = |net energy kWh| / interval hours
+```
+
+Example:
+
+```text
+Net energy: 10 kWh
+Interval:   0.5 h
+
+Requested power:
+10 / 0.5 = 20 kW
+```
+
+---
+
+## Controller operating limits
+
+`ControllerLimits` currently contains:
+
+- Maximum charge power
+- Maximum discharge power
+- Minimum battery state of charge
+- Maximum battery state of charge
+
+The limits are configured outside the C++ decision algorithm.
+
+```text
+ControllerLimits ─────┐
+                      │
+                      ▼
+                EnergyController
+                      ▲
+                      │
+EnergyMeasurement ────┘
+                      │
+                      ▼
+                ControlCommand
+```
+
+For charging, final power is limited by:
+
+```text
+requested charge power
+configured maximum charge power
+remaining battery capacity
+```
+
+For discharging, final power is limited by:
+
+```text
+requested discharge power
+configured maximum discharge power
+available energy above the minimum reserve
+```
+
+If the battery cannot safely charge or discharge, the controller can return
+`Idle`.
+
+---
+
+# Controller-to-hardware integration
+
+`EnergyController` does not perform hardware I/O.
+
+Hardware execution is handled by `HardwareCommandExecutor`.
+
+```text
+EnergyMeasurement
+        │
+        ▼
+EnergyController
+        │
         ▼
 ControlCommand
         │
         ▼
 HardwareCommandExecutor
         │
-        ├── Battery actuator command
-        └── Grid actuator command
+        ├── Battery actuator
+        └── Grid actuator
         │
         ▼
 C Hardware Abstraction Layer
 ```
 
-This separation is intentional.
-
-`EnergyController` answers:
+This separates:
 
 ```text
-What should the energy system do?
+What should the system do?
 ```
 
-`HardwareCommandExecutor` answers:
+from:
 
 ```text
-How should that decision be represented at the hardware boundary?
+How should that action be represented at the hardware boundary?
 ```
 
-This prevents hardware side effects from becoming mixed into the controller's
-decision logic.
+---
 
-### Complete-state actuator commands
-
-Each controller command is translated into an explicit desired state for both
-the battery and grid actuators.
+## Complete-state actuator mapping
 
 The current mapping is:
 
-```text
-ControlAction          Battery actuator       Grid actuator
----------------------------------------------------------------
-Idle                   Idle                   Idle
-ChargeBattery          Charge                 Idle
-DischargeBattery       Discharge              Idle
-ImportFromGrid         Idle                   Import
-ExportToGrid           Idle                   Export
-```
+| Control action   | Battery actuator | Grid actuator |
+| ---------------- | ---------------- | ------------- |
+| Idle             | Idle             | Idle          |
+| ChargeBattery    | Charge           | Idle          |
+| DischargeBattery | Discharge        | Idle          |
+| ImportFromGrid   | Idle             | Import        |
+| ExportToGrid     | Idle             | Export        |
 
-For example:
+The non-target actuator is explicitly idled.
 
-```text
-ControlCommand
-Action: ChargeBattery
-Power:  20 kW
+This avoids accidentally leaving an earlier device state active when the next
+controller command targets another device.
 
-        │
-        ▼
+---
 
-Battery:
-Charge 20 kW
+## Hardware execution results
 
-Grid:
-Idle 0 kW
-```
+`HardwareExecutionResult` keeps separate results for:
 
-If the next command changes to grid import:
-
-```text
-ControlCommand
-Action: ImportFromGrid
-Power:  15 kW
-
-        │
-        ▼
-
-Battery:
-Idle 0 kW
-
-Grid:
-Import 15 kW
-```
-
-The non-target actuator is therefore explicitly idled.
-
-This avoids leaving an earlier actuator state active only because a later
-controller decision targets another device.
-
-### Hardware execution results
-
-Hardware execution does not collapse all device behavior into a single boolean
-result.
-
-`HardwareExecutionResult` preserves separate normalized results for:
-
-* Battery execution
-* Grid execution
-
-Conceptually:
-
-```text
-HardwareExecutionResult
-        │
-        ├── battery_error
-        └── grid_error
-```
+- Battery execution
+- Grid execution
 
 This makes partial failures visible.
 
@@ -1139,42 +915,17 @@ Battery command: Succeeded
 Grid command:    Failed
 ```
 
-The executor uses the common C hardware error model instead of defining a second
-unrelated error representation in C++.
+---
 
-### Defensive action validation
+# C hardware interfaces
 
-The executor translates both hardware commands before hardware access begins.
+## Sensor interface
 
-If an unsupported or unknown C++ `ControlAction` reaches the executor, it is
-rejected before either actuator callback is invoked.
+A generic sensor contains:
 
-This creates a defensive boundary between controller-domain output and hardware
-side effects.
-
-### Execution policy
-
-The current educational implementation attempts both actuator commands and
-retains both results.
-
-This provides visibility into partial failures and makes behavior explicit
-during simulation and testing.
-
-For future physical hardware, fail-safe ordering and command sequencing would
-need to be treated as an explicit safety policy.
-
-The current project does not claim that the existing execution ordering is
-appropriate for real electrical equipment.
-
-## C hardware sensor interface
-
-The generic C sensor abstraction uses:
-
-* A sensor type
-* A read callback
-* An opaque callback context
-* Explicit status codes
-* An output parameter for the measured value
+- Sensor type
+- Read callback
+- Opaque callback context
 
 Conceptually:
 
@@ -1186,10 +937,7 @@ GridFlexSensor
       └── context
 ```
 
-The generic sensor layer validates the interface before calling a concrete
-device implementation.
-
-Examples of sensor statuses include:
+Example statuses include:
 
 ```text
 OK
@@ -1198,18 +946,16 @@ NOT_CONFIGURED
 READ_FAILED
 ```
 
-The callback/context design makes the generic interface independent of the
-concrete sensor implementation.
+---
 
-## C hardware actuator interface
+## Actuator interface
 
-The generic actuator abstraction uses:
+A generic actuator contains:
 
-* An actuator type
-* An apply callback
-* An opaque callback context
-* An explicit actuator command
-* Explicit status codes
+- Actuator type
+- Apply callback
+- Opaque callback context
+- Explicit actuator command
 
 Conceptually:
 
@@ -1220,24 +966,6 @@ GridFlexActuator
       ├── apply callback
       └── context
 ```
-
-A hardware command contains:
-
-```text
-action
-requested power
-```
-
-Action direction is explicit.
-
-For example:
-
-```text
-Action: CHARGE
-Power:  20 kW
-```
-
-rather than encoding direction through positive or negative numeric values.
 
 Current actuator types include:
 
@@ -1257,110 +985,48 @@ Import
 Export
 ```
 
-The generic actuator layer validates:
+The generic actuator layer validates the request before calling the concrete
+device callback.
 
-* Non-null arguments
-* Actuator type
-* Action type
-* Actuator/action compatibility
-* Requested power
-* Callback configuration
+---
 
-before invoking the concrete device callback.
+## Simulated hardware
 
-## Simulated C hardware
+Simulated sensors support:
 
-The C hardware layer includes simulated implementations of both sensors and
-actuators.
+- Configurable values
+- Failure injection
+- Read-attempt tracking
 
-### Simulated sensors
+Simulated actuators support:
 
-A simulated sensor stores:
+- Failure injection
+- Apply-attempt tracking
+- Last successful action
+- Last successful requested power
 
-* Sensor type
-* Current simulated value
-* Failure-injection state
-* Read-attempt count
+Failed operations count as attempts but do not overwrite the last successful
+device state.
 
-It can be adapted into the generic `GridFlexSensor` interface.
+---
 
-Conceptually:
+## Hardware error model
 
-```text
-GridFlexSimulatedSensor
-        │
-        │ adapted as
-        ▼
-GridFlexSensor
-        │
-        ▼
-generic sensor API
-```
-
-The same generic sensor API can therefore work with a simulated device or a
-future concrete hardware driver.
-
-### Simulated actuators
-
-A simulated actuator stores:
-
-* Actuator type
-* Failure-injection state
-* Apply-attempt count
-* Last successful action
-* Last successful requested power
-
-It can be adapted into the generic `GridFlexActuator` interface.
-
-Conceptually:
-
-```text
-GridFlexSimulatedActuator
-        │
-        │ adapted as
-        ▼
-GridFlexActuator
-        │
-        ▼
-generic actuator API
-```
-
-Failed simulated apply operations count as attempts but do not overwrite the
-last successful actuator state.
-
-This makes simulated failures observable and testable.
-
-## C hardware error handling
-
-The hardware layer contains a common normalized error representation:
+The hardware layer normalizes lower-level statuses through:
 
 ```text
 GridFlexHardwareError
 ```
 
-The error identifies:
+The error model identifies:
 
-* Error source
-* Hardware operation
-* Normalized error code
-* Sensor type when relevant
-* Actuator type when relevant
+- Error source
+- Hardware operation
+- Normalized error code
+- Sensor type when relevant
+- Actuator type when relevant
 
-Current error sources include:
-
-```text
-Sensor
-Actuator
-```
-
-Current operations include:
-
-```text
-Read
-Apply
-```
-
-Normalized error codes include:
+Normalized errors include:
 
 ```text
 NONE
@@ -1371,66 +1037,164 @@ OPERATION_FAILED
 UNKNOWN_STATUS
 ```
 
-This separates low-level API-specific status values from a common error model.
+The C++ hardware executor reuses this common C hardware error model.
 
-For example:
+---
 
-```text
-Sensor READ_FAILED
-        │
-        ▼
-Hardware error
-OPERATION_FAILED
-```
+# Python simulation
 
-and:
+The Python simulation provides reproducible energy-system scenarios.
 
-```text
-Actuator UNSUPPORTED_ACTION
-        │
-        ▼
-Hardware error
-UNSUPPORTED_OPERATION
-```
-
-The C++ `HardwareCommandExecutor` reuses this error model when reporting actuator
-execution results.
-
-## Scenario configuration
-
-Simulation scenarios define reproducible initial conditions.
-
-A scenario contains:
-
-* Scenario name
-* Battery configuration
-* Solar configuration
-* Building configuration
-* Grid configuration
-* Timeline steps
-
-Scenario configuration objects are immutable.
-
-Fresh runtime components are created whenever a scenario is executed.
-
-This prevents mutable state from one simulation run from leaking into another.
+The current high-level flow is:
 
 ```text
 SimulationScenario
         │
-        ├── Run 1 → fresh runtime components
+        ▼
+SimulationScenarioRunner
         │
-        └── Run 2 → fresh runtime components
+        ▼
+SimulationTimelineRunner
+        │
+        ▼
+EnergyManagementService
+        │
+        ├── EnergyBalanceCalculator
+        ├── BatteryDispatchService
+        └── GridConnection
+        │
+        ▼
+EnergyMeasurementFactory
+        │
+        ▼
+EnergyMeasurement
+        │
+        ▼
+SimulationScenarioResult
 ```
 
-This allows identical scenarios to produce deterministic results when the
-underlying models and control strategy remain unchanged.
+The architecture separates:
 
-## Default demonstration scenario
+- Configuration from mutable runtime state
+- Energy calculations from coordination
+- Simulation internals from external measurements
+- Timeline execution from individual decisions
+
+---
+
+## Battery model
+
+The battery model supports:
+
+- Total capacity
+- Current state of charge
+- Available capacity
+- Charging
+- Discharging
+- State-of-charge calculation
+- Invalid-state validation
+
+The battery is intentionally mutable because its state changes during a running
+simulation.
+
+---
+
+## Solar generation model
+
+Solar generation currently uses:
+
+- Installed capacity
+- Irradiance factor
+- Performance ratio
+- Simulation interval
+
+The model is intentionally deterministic and simplified.
+
+---
+
+## Building consumption model
+
+Building consumption currently uses:
+
+- Base load
+- Peak load
+- Activity factor
+- Simulation interval
+
+---
+
+## Grid connection model
+
+The grid model supports:
+
+- Energy import
+- Energy export
+- Maximum import power
+- Maximum export power
+- Grid availability
+- Interval-based transfer limits
+
+Power limits use kilowatts.
+
+Transferable energy depends on time:
+
+```text
+energy = power × time
+```
+
+Example:
+
+```text
+50 kW × 0.5 h = 25 kWh
+```
+
+---
+
+## Python energy-management strategy
+
+The current simulation strategy is battery-first.
+
+For surplus:
+
+```text
+Solar surplus
+      │
+      ▼
+Charge battery
+      │
+      ▼
+Remaining surplus
+      │
+      ▼
+Export to grid
+```
+
+For deficit:
+
+```text
+Energy deficit
+      │
+      ▼
+Discharge battery
+      │
+      ▼
+Remaining deficit
+      │
+      ▼
+Import from grid
+```
+
+The Python implementation acts as simulation and reference behavior.
+
+The C++ controller remains independently implemented and tested.
+
+---
+
+# Default simulation scenario
 
 The current demonstration contains three one-hour steps.
 
-### Step 1
+## Step 1
 
 ```text
 Solar generation:      76.5 kWh
@@ -1444,7 +1208,7 @@ Grid import:             0.0 kWh
 Grid export:             0.0 kWh
 ```
 
-### Step 2
+## Step 2
 
 ```text
 Solar generation:      25.5 kWh
@@ -1458,7 +1222,7 @@ Grid import:             2.0 kWh
 Grid export:             0.0 kWh
 ```
 
-### Step 3
+## Step 3
 
 ```text
 Solar generation:     102.0 kWh
@@ -1472,7 +1236,7 @@ Grid import:             0.0 kWh
 Grid export:             0.0 kWh
 ```
 
-Scenario summary:
+Final summary:
 
 ```text
 Final battery state of charge: 60.0 kWh
@@ -1481,448 +1245,30 @@ Total grid export:               0.0 kWh
 Total unresolved energy:         0.0 kWh
 ```
 
-## Engineering principles
+---
 
-GridFlex EMS follows these engineering principles.
-
-### Clear responsibilities
-
-Each component and class should have a clear and limited responsibility.
-
-### Incremental development
-
-The system is developed through small, understandable and testable changes.
-
-### Testability
-
-Business rules and control decisions should be testable without requiring the
-entire system to run.
-
-### Defensive validation
-
-Invalid measurements, invalid commands and impossible states should be rejected
-explicitly.
-
-### Explicit interfaces
-
-Communication between components should happen through documented interfaces.
-
-Input and output contracts should remain explicit rather than relying on
-implicit assumptions between components.
-
-### Observability
-
-Important system decisions, errors and state changes should be visible through
-logs and metrics.
-
-### Reliability
-
-Components should handle invalid input, unavailable dependencies and unexpected
-conditions in a controlled manner.
-
-### Performance awareness
-
-Performance-sensitive functionality should be measured rather than assumed.
-
-### Documented decisions
-
-Important architectural decisions should be documented through Architecture
-Decision Records.
-
-### Separation of concerns
-
-Simulation, control logic, hardware access, API communication and presentation
-should not be mixed together.
-
-The current controller/hardware integration demonstrates this directly:
-
-```text
-Decision logic
-EnergyController
-      │
-      ▼
-ControlCommand
-
-Hardware execution
-HardwareCommandExecutor
-      │
-      ▼
-C hardware abstraction
-```
-
-### Portability
-
-Core components should avoid unnecessary platform-specific assumptions.
-
-The C and C++ components are currently validated using MSVC on Windows and
-through Linux-based GitHub Actions.
-
-## Quality attributes
-
-The project places particular focus on the following quality attributes.
-
-### Robustness
-
-The system should continue operating safely when it receives invalid or
-unexpected input.
-
-### Maintainability
-
-The source code should be readable, modular and easy to change.
-
-### Testability
-
-Core behavior should be covered by automated tests.
-
-### Performance
-
-Time-sensitive control logic should have predictable and measurable execution
-time.
-
-### Scalability
-
-Individual components should be replaceable or extendable without requiring a
-complete redesign.
-
-### Portability
-
-The project should be runnable on Windows during development and Linux through
-containers or native tooling.
-
-### Observability
-
-The system should provide enough information to understand its current state
-and diagnose failures.
-
-## Development approach
-
-The project is developed using an incremental, sprint-inspired workflow.
-
-Each development step should include:
-
-* A clearly defined goal
-* A small implementation scope
-* Automated tests
-* Documentation
-* A meaningful Git commit
-* An explanation of technical decisions
-
-The Git history is intended to show how the architecture and implementation
-evolve over time.
-
-The project uses feature branches and pull requests for incremental changes.
-
-The current development flow is:
-
-```text
-Feature branch
-      │
-      ▼
-Implementation
-      │
-      ▼
-Local build and tests
-      │
-      ▼
-Commit and push
-      │
-      ▼
-Pull request
-      │
-      ▼
-GitHub Actions
-      │
-      ▼
-Squash merge
-      │
-      ▼
-Main
-```
-
-Quality checks run locally and through GitHub Actions before changes are merged
-into the main branch.
-
-## Planned milestones
-
-### Milestone 1: Project foundation - Complete
-
-* [x] Repository structure
-* [x] Documentation
-* [x] Python package setup
-* [x] Battery simulation
-* [x] Unit tests
-* [x] Linting
-* [x] Static type checking
-* [x] Continuous integration
-
-### Milestone 2: Energy simulation - Complete
-
-* [x] Solar generation model
-* [x] Building consumption model
-* [x] Grid connection model
-* [x] Simulation timeline
-* [x] Energy measurements
-* [x] Scenario configuration
-
-### Milestone 3: Control logic - Complete
-
-* [x] Initial energy control rules
-* [x] C++ project setup
-* [x] Measurement input
-* [x] Control commands
-* [x] Safety limits
-* [x] Initial controller unit-test infrastructure
-* [x] Performance benchmarks
-
-Milestone 3 completion status:
-
-```text
-C++ project foundation       Complete
-Measurement input            Complete
-Control commands             Complete
-C++ test infrastructure      Complete
-Linux C++ CI                 Complete
-Initial control rules        Complete
-Safety limits                Complete
-Performance benchmarks       Complete
-```
-
-### Milestone 4: Hardware abstraction - Complete
-
-* [x] C project setup
-* [x] Sensor interfaces
-* [x] Actuator interfaces
-* [x] Simulated hardware devices
-* [x] Error handling
-* [x] Controller integration
-
-Milestone 4 completion status:
-
-```text
-C project foundation            Complete
-Sensor interface                Complete
-Actuator interface              Complete
-Simulated sensor devices        Complete
-Simulated actuator devices      Complete
-Hardware error handling         Complete
-Controller integration          Complete
-Mixed C/C++ build               Complete
-C/C++ integration testing       Complete
-C hardware CI                   Complete
-```
-
-### Milestone 5: Backend API - Next
-
-* [ ] ASP.NET Core solution
-* [ ] REST endpoints
-* [ ] Application services
-* [ ] Health checks
-* [ ] Structured logging
-* [ ] Integration with simulation and controller components
-
-### Milestone 6: Containers and Linux
-
-* [ ] Dockerfiles
-* [ ] Docker Compose
-* [x] Initial Linux C++ builds through GitHub Actions
-* [x] Initial Linux C builds through GitHub Actions
-* [ ] Development scripts
-* [ ] Component networking
-* [ ] Environment configuration
-
-### Milestone 7: DevOps and Azure
-
-* [x] Initial GitHub Actions quality checks
-* [x] Python automated build and test workflow
-* [x] Initial C++ automated build and test workflow
-* [x] Initial C automated build and test workflow
-* [ ] Automated multi-component builds
-* [ ] Extended code-quality checks
-* [ ] Container image creation
-* [ ] Azure deployment
-* [ ] Monitoring and telemetry
-
-### Milestone 8: Frontend dashboard
-
-* [ ] System overview
-* [ ] Battery status
-* [ ] Solar production
-* [ ] Building consumption
-* [ ] Grid import and export
-* [ ] Controller decisions
-* [ ] Alerts and system health
-
-## Testing strategy
-
-The project uses several types of testing.
-
-### Unit tests
-
-Unit tests verify individual classes and functions in isolation.
-
-Current Python examples include:
-
-* Battery charging behavior
-* Battery discharging behavior
-* Solar generation
-* Building consumption
-* Energy balance calculations
-* Battery dispatch
-* Grid transfer limits
-* Energy management behavior
-* Measurement validation
-* Timeline behavior
-* Scenario reproducibility
-
-Current C++ examples include:
-
-* Valid energy measurement construction
-* Measurement value preservation
-* Signed grid import calculation
-* Signed grid export calculation
-* Rejection of invalid measurement step numbers
-* Rejection of non-positive measurement intervals
-* Rejection of negative energy values
-* Rejection of non-finite measurement values
-* Rejection of simultaneous grid import and export
-* Valid active control commands
-* Explicit idle control commands
-* Rejection of invalid command source steps
-* Rejection of negative command power
-* Rejection of non-finite command power
-* Rejection of idle commands with requested power
-* Rejection of active commands with zero requested power
-* Valid controller operating-limit configuration
-* Rejection of invalid controller operating limits
-* Surplus-to-charge controller decisions
-* Deficit-to-discharge controller decisions
-* Balanced-energy idle decisions
-* Interval-energy to requested-power conversion
-* Floating-point balance tolerance
-* Maximum charge-power limiting
-* Maximum discharge-power limiting
-* Maximum battery state-of-charge protection
-* Minimum battery state-of-charge protection
-* Charge limiting by remaining battery capacity
-* Discharge limiting by minimum battery reserve
-* Hardware command translation
-* Battery and grid actuator routing
-* Complete-state actuator updates
-* Partial hardware failure reporting
-* Unknown action rejection before hardware access
-* Unconfigured actuator handling
-
-Current C examples include:
-
-* Sensor argument validation
-* Sensor callback configuration
-* Sensor callback failure propagation
-* Sensor output preservation on failed reads
-* Actuator argument validation
-* Actuator/action compatibility
-* Actuator power validation
-* Actuator callback failure propagation
-* Simulated sensor initialization
-* Simulated sensor read behavior
-* Simulated sensor failure injection
-* Simulated actuator initialization
-* Simulated actuator apply behavior
-* Simulated actuator failure injection
-* Hardware error mapping
-* Unknown hardware status handling
-
-### Scenario tests
-
-Scenario tests verify complete energy situations.
-
-Examples include:
-
-* High solar production and low consumption
-* Low solar production and high consumption
-* Fully charged battery
-* Empty battery
-* Grid connection failure
-* Grid transfer limits
-
-Later scenarios may include:
-
-* Battery overheating
-* Safety shutdown
-* Load shedding
-* Extended cross-component behavior
-
-### Integration tests
-
-Integration testing is now used for the C++ controller and C hardware boundary.
-
-Current integration coverage includes:
-
-* Controller decision to battery actuator execution
-* Controller decision to grid actuator execution
-* Explicit idling of non-target actuators
-* State changes across consecutive controller commands
-* Normalized hardware-error propagation
-* Partial actuator failures
-* Unconfigured hardware interfaces
-* C++ to C function linkage
-* End-to-end execution from `EnergyMeasurement` through `EnergyController` into
-  simulated C hardware
-
-The end-to-end path tested is:
-
-```text
-EnergyMeasurement
-        │
-        ▼
-EnergyController::decide()
-        │
-        ▼
-ControlCommand
-        │
-        ▼
-HardwareCommandExecutor::execute()
-        │
-        ▼
-GridFlexActuator
-        │
-        ▼
-C callback
-        │
-        ▼
-GridFlexSimulatedActuator
-```
-
-Future integration work will include:
-
-* Simulation engine to controller
-* ASP.NET Core API to system components
-* Containerized component communication
-
-### Performance benchmarks
+# Performance measurement
 
 The C++ controller includes a dedicated microbenchmark executable.
 
-The benchmark currently measures:
+It currently measures:
 
-* Surplus controller decisions
-* Deficit controller decisions
-* Balanced controller decisions
-* Total measured execution time
-* Average nanoseconds per decision
-* Decisions per second
+- Surplus decisions
+- Deficit decisions
+- Balanced decisions
+- Total execution time
+- Average nanoseconds per decision
+- Decisions per second
 
 The benchmark uses:
 
-* `std::chrono::steady_clock`
-* A Release build
-* 100,000 warmup iterations per case
-* 10,000,000 measured iterations per case
-* Result consumption through a checksum
+- `std::chrono::steady_clock`
+- Release builds
+- 100,000 warmup iterations per case
+- 10,000,000 measured iterations per case
+- Checksum consumption of results
 
-The checksum keeps the controller output observable and reduces the risk of the
-compiler removing the work being measured as unused.
-
-The benchmark deliberately remains separate from the unit tests.
+The benchmark deliberately remains separate from unit tests.
 
 Unit tests answer:
 
@@ -1933,633 +1279,738 @@ Is the controller behavior correct?
 The benchmark answers:
 
 ```text
-How does the current controller decision path perform?
+How does the controller decision path perform?
 ```
 
-The benchmark is executed in Linux CI as a smoke test, but CI does not enforce
-performance thresholds.
+Representative Windows/MSVC Release measurements from the current development
+baseline have been approximately:
 
-Shared CI runners can differ in:
+```text
+Surplus:   23–25 ns/decision
+Deficit:   23–24 ns/decision
+Balanced:  around 11 ns/decision
+```
 
-* CPU hardware
-* Virtualization
-* Current system load
-* Compiler environment
-* Power-management behavior
+These are local development-machine microbenchmark results.
 
-Performance values from CI are therefore not treated as stable acceptance
-criteria.
+They are not:
 
-## Current quality baseline
+- Hard real-time guarantees
+- Production SLOs
+- Portable timing guarantees
 
-### Python
+---
 
-At the completion of Milestone 2:
+# Testing strategy
+
+The project uses several levels of automated testing.
+
+## Python
+
+Python testing includes:
+
+- Unit tests
+- Scenario tests
+- Validation tests
+- pytest
+- Coverage
+- Ruff
+- mypy
+
+Current Python baseline:
 
 ```text
 127 tests passed
-100% coverage of the tested Python domain modules
+100% coverage of tested domain modules
 Ruff passed
 mypy passed
-GitHub Actions passed
 ```
 
-Test coverage is used as one quality signal.
+Coverage is used as one quality signal and is not treated as proof that all
+possible behavior is correct.
 
-A coverage percentage of 100% does not by itself guarantee that every possible
-behavior is correct.
+---
 
-Tests are expected to verify meaningful domain rules, boundaries and edge cases.
+## C++
 
-### C++
+C++ testing includes:
 
-At the completion of Milestone 4, the current local C++ Catch2 baseline is:
+- `EnergyMeasurement` validation
+- `ControlCommand` validation
+- `ControllerLimits`
+- Controller decisions
+- State-of-charge boundaries
+- Power limits
+- Hardware command translation
+- Partial hardware failures
+- C/C++ integration
+- Performance smoke testing
+
+Current C++ Catch2 baseline:
 
 ```text
-47 Catch2 test cases passed
-148 assertions passed
-Debug and Release builds supported with MSVC
-Linux GitHub Actions build passed
-Controller CLI smoke test passed
-Controller benchmark smoke test passed
+47 Catch2 test cases
+148 assertions
+0 failures
 ```
 
-The C++ test suite covers:
+---
 
-* `EnergyMeasurement`
-* `ControlCommand`
-* `ControllerLimits`
-* `EnergyController`
-* `HardwareCommandExecutor`
-* Controller-to-C-hardware integration
+## C
 
-The integrated controller CTest build additionally includes the native C
-hardware tests.
+Native C tests cover:
 
-The combined local validation baseline is:
+- Sensor contracts
+- Actuator contracts
+- Callback configuration
+- Argument validation
+- Failure propagation
+- Simulated device behavior
+- Failure injection
+- Error normalization
+
+The C hardware project currently registers five native C test targets through
+CTest.
+
+---
+
+## Mixed C/C++
+
+The integrated native controller build validates both the C and C++ layers.
+
+Current baseline:
 
 ```text
-52 CTest tests passed
-0 CTest tests failed
+47 Catch2 test cases
+5 native C test targets
+52 total CTest tests
+148 Catch2 assertions
+0 failures
 ```
 
-This consists of:
+---
+
+## .NET backend
+
+The backend test suite currently contains:
 
 ```text
-47 discovered Catch2 test cases
-5 native C hardware test targets
+29 tests
+0 failures
 ```
 
-### C
+Coverage includes:
 
-The current C hardware quality baseline includes:
+- Application startup
+- System status
+- Liveness
+- Readiness
+- Controller application service behavior
+- Native interoperability contracts
+- Native ABI layout
+- Safe native handles
+- Native runtime integration
+- `NativeControllerGateway`
+- Dependency injection composition
+- HTTP control decisions
+- Invalid HTTP measurements
+- End-to-end HTTP-to-C++ execution
+
+A successful endpoint integration test executes:
 
 ```text
-C17 build passed with MSVC
-gridflex_hardware static library built successfully
-Hardware CLI built successfully
-5 native C test executables registered through CTest
-Sensor tests passed
-Actuator tests passed
-Simulated sensor tests passed
-Simulated actuator tests passed
-Hardware error tests passed
-Linux GitHub Actions build and tests passed
+HTTP request
+    │
+    ▼
+ASP.NET Core
+    │
+    ▼
+ControlDecisionService
+    │
+    ▼
+NativeControllerGateway
+    │
+    ▼
+C ABI
+    │
+    ▼
+C++ EnergyController
 ```
 
-The C quality baseline covers:
+---
 
-* Sensor contracts
-* Actuator contracts
-* Defensive validation
-* Callback configuration
-* Callback failure propagation
-* Simulated device behavior
-* Failure injection
-* Common error normalization
-* C/C++ compatible public interfaces
+# Continuous integration
 
-### Mixed C/C++ integration
+The repository contains separate GitHub Actions quality workflows for:
 
-The controller project is now a mixed-language CMake build.
+- Python
+- C
+- C++
+- Backend
 
-The current validation demonstrates:
+## Python Quality
 
-```text
-C compiler       MSVC
-C++ compiler     MSVC
-C standard       C17
-C++ standard     C++20
-C static library successfully linked into C++ controller
-52 integrated CTest tests passed
-47 Catch2 cases passed
-148 Catch2 assertions passed
-```
+The workflow:
 
-GitHub Actions additionally validates the repository using Linux-based
-toolchains.
+- Installs Python 3.12
+- Installs development dependencies
+- Runs Ruff
+- Runs mypy
+- Runs pytest with coverage
 
-### C++ performance baseline
+---
 
-Representative local Windows/MSVC Release microbenchmark measurements from the
-Milestone 3 baseline were:
+## C Quality
 
-```text
-Surplus decision:   approximately 23–25 ns/decision
-Deficit decision:   approximately 23–24 ns/decision
-Balanced decision:  approximately 11 ns/decision
-```
+The workflow:
 
-Across five longer local benchmark runs, representative median measurements were
-approximately:
+- Runs on Linux
+- Configures the hardware CMake project
+- Builds the C library
+- Builds the CLI
+- Builds native tests
+- Runs CTest
+- Executes a CLI smoke test
 
-```text
-Surplus decision:   24.29 ns/decision
-Deficit decision:   23.03 ns/decision
-Balanced decision:  11.05 ns/decision
-```
+---
 
-Later local runs have shown normal variation above these numbers.
+## C++ Quality
 
-These measurements are development-machine microbenchmark results.
+The workflow:
 
-They are not real-time guarantees, production service-level objectives or
-portable performance guarantees.
+- Runs on Linux
+- Configures the mixed C/C++ controller project
+- Enables tests
+- Enables benchmark builds
+- Builds the controller
+- Builds the C hardware dependency
+- Runs CTest
+- Runs the controller CLI
+- Runs the benchmark as a smoke test
 
-The measured loop also includes minimal checksum work used to consume the
-generated `ControlCommand` and keep the result observable to the optimizer.
+---
 
-The purpose of the baseline is to make controller performance measurable before
-additional controller complexity is introduced.
+## Backend Quality
 
-## Continuous integration
+The backend workflow validates the ASP.NET Core and managed/native integration.
 
-The repository currently contains separate quality workflows for:
+It includes:
 
-* Python
-* C++
-* C
+- .NET restore
+- Formatting validation
+- Build
+- Tests
+- Native controller integration
 
-### Python Quality
+The native shared library is built and made available to the backend test
+environment so end-to-end interoperability can be validated in CI.
 
-The Python workflow:
+---
 
-* Installs Python 3.12
-* Installs the simulation package and development dependencies
-* Runs Ruff
-* Runs mypy
-* Runs pytest with coverage
-
-### C++ Quality
-
-The C++ workflow:
-
-* Runs on Ubuntu
-* Displays CMake and compiler versions
-* Configures the controller as a Release build
-* Enables testing
-* Enables benchmark builds
-* Builds the mixed C/C++ controller project
-* Builds the C hardware dependency
-* Builds the benchmark executable
-* Runs CTest
-* Executes the controller CLI as a smoke test
-* Executes the controller benchmark as a smoke test
-
-Because the controller now includes the C hardware project through CMake, the
-controller integration workflow also exercises the C/C++ boundary.
-
-### C Quality
-
-The C workflow:
-
-* Runs on Ubuntu
-* Configures the standalone hardware project
-* Builds the C static library
-* Builds the hardware CLI
-* Builds the native C tests
-* Runs CTest
-* Executes the hardware CLI as a smoke test
-
-This gives the native components validation on both:
+# Current quality baseline
 
 ```text
-Local development:
-Windows + MSVC
+Python
+127 tests
+Ruff passed
+mypy passed
 
-Continuous integration:
-Linux + native C/C++ toolchains
-```
+C++
+47 Catch2 cases
+148 assertions
 
-Performance timings from the shared Linux CI runner are not used as pass/fail
-thresholds.
-
-## C hardware build structure
-
-The hardware component is built as a reusable C static library.
-
-Conceptually:
-
-```text
-hardware.c
-sensor.c
-actuator.c
-simulated_sensor.c
-simulated_actuator.c
-error.c
-        │
-        ▼
-gridflex_hardware
-```
-
-The standalone hardware project also builds:
-
-```text
-gridflex_hardware
-        │
-        ├──────────────► gridflex_hardware_cli
-        │
-        ├──────────────► gridflex_sensor_tests
-        │
-        ├──────────────► gridflex_actuator_tests
-        │
-        ├──────────────► gridflex_simulated_sensor_tests
-        │
-        ├──────────────► gridflex_simulated_actuator_tests
-        │
-        └──────────────► gridflex_error_tests
-```
-
-This keeps generic hardware interfaces and simulated implementations separate
-from:
-
-* CLI entry points
-* Native test executables
-* C++ controller logic
-
-## C++ build structure
-
-The controller is built as a reusable static library.
-
-The current controller source structure includes:
-
-```text
-control_command.cpp
-controller.cpp
-controller_limits.cpp
-energy_controller.cpp
-energy_measurement.cpp
-hardware_command_executor.cpp
-        │
-        ▼
-gridflex_controller
-```
-
-The controller publicly links against:
-
-```text
-gridflex_hardware
-```
-
-The relationship is:
-
-```text
-gridflex_hardware
-        │
-        │ C static library
-        ▼
-gridflex_controller
-        │
-        │ C++ static library
-        ├──────────────► gridflex_controller_cli
-        ├──────────────► gridflex_controller_tests
-        └──────────────► gridflex_controller_benchmark
-```
-
-The `PUBLIC` CMake dependency is intentional because the public
-`hardware_command_executor.hpp` interface exposes C hardware types.
-
-Consumers of that public C++ interface therefore also require access to the
-hardware headers.
-
-The controller CMake project declares both languages:
-
-```text
 C
+5 native CTest targets
+
+Integrated C/C++
+52 CTest tests
+
+.NET backend
+29 tests
+
+GitHub Actions
+Python Quality   passed
+C Quality        passed
+C++ Quality      passed
+Backend Quality  passed
+```
+
+---
+
+# Repository structure
+
+```text
+gridflex-ems/
+├── .github/
+│   └── workflows/
+│       ├── backend-quality.yml
+│       ├── c-quality.yml
+│       ├── cpp-quality.yml
+│       └── python-quality.yml
+│
+├── backend/
+│   ├── GridFlex.Api/
+│   │   ├── Application/
+│   │   ├── Contracts/
+│   │   ├── Endpoints/
+│   │   ├── Infrastructure/
+│   │   ├── Services/
+│   │   ├── Program.cs
+│   │   └── appsettings.json
+│   │
+│   ├── GridFlex.Api.Tests/
+│   └── GridFlex.slnx
+│
+├── controller/
+│   ├── benchmarks/
+│   ├── include/
+│   ├── src/
+│   ├── tests/
+│   └── CMakeLists.txt
+│
+├── hardware/
+│   ├── include/
+│   ├── src/
+│   ├── tests/
+│   └── CMakeLists.txt
+│
+├── simulation/
+│   ├── src/
+│   ├── tests/
+│   └── pyproject.toml
+│
+├── docs/
+│   ├── decisions/
+│   │   ├── 0001-use-multiple-languages.md
+│   │   └── 0002-use-c-abi-for-dotnet-cpp-interop.md
+│   ├── architecture.md
+│   └── simulation-architecture.md
+│
+├── docker/
+├── scripts/
+├── .clang-format
+├── .editorconfig
+├── .gitignore
+├── LICENSE
+└── README.md
+```
+
+---
+
+# Engineering principles
+
+## Clear responsibilities
+
+Each component should have a small and understandable responsibility.
+
+---
+
+## Separation of concerns
+
+Simulation, application coordination, controller logic, native
+interoperability, hardware access and presentation remain separate.
+
+---
+
+## Explicit boundaries
+
+Important boundaries use explicit interfaces and contracts.
+
+Examples include:
+
+```text
+HTTP
+ControlDecisionRequest / ControlDecisionResponse
+```
+
+```text
+Application
+IControlDecisionService
+IControllerGateway
+```
+
+```text
+Managed/native
+Versioned C ABI
+```
+
+```text
+Controller
+EnergyMeasurement
+ControlCommand
+```
+
+```text
+Hardware
+GridFlexSensor
+GridFlexActuator
+```
+
+---
+
+## Dependency direction
+
+The application layer depends on abstractions rather than native infrastructure.
+
+For example:
+
+```text
+ControlDecisionService
+        │
+        ▼
+IControllerGateway
+```
+
+rather than:
+
+```text
+ControlDecisionService
+        │
+        ▼
+P/Invoke / C ABI
+```
+
+Native details remain in the Infrastructure layer.
+
+---
+
+## Defensive programming
+
+Invalid data should be rejected at boundaries.
+
+Examples include:
+
+- Invalid simulation input
+- Invalid C++ measurements
+- Invalid control commands
+- Invalid controller limits
+- Invalid native ABI calls
+- Unsupported control actions
+- Invalid HTTP measurements
+
+---
+
+## Explicit mapping
+
+Important boundaries use explicit mapping instead of relying on accidental
+representation compatibility.
+
+Examples:
+
+```text
+HTTP request
+    ↓
+EnergyMeasurementInput
+```
+
+```text
+Native action
+    ↓
+ControlAction
+```
+
+```text
+ControlAction
+    ↓
+HTTP action string
+```
+
+This keeps contracts independently evolvable.
+
+---
+
+## Testability
+
+Core behavior should remain independently testable.
+
+The project contains:
+
+- Unit tests
+- Integration tests
+- Native interoperability tests
+- HTTP integration tests
+- Scenario tests
+- CI validation
+- Performance benchmarks
+
+---
+
+## Observability
+
+System state and dependency health should be visible.
+
+The backend currently exposes:
+
+```text
+/api/system/status
+/health/live
+/health/ready
+```
+
+Logging and metrics will be expanded in later milestones.
+
+---
+
+## Reliability
+
+Failures should be surfaced explicitly instead of being silently ignored.
+
+Examples include:
+
+- Native status codes
+- Managed exceptions at infrastructure boundaries
+- Readiness failures
+- HTTP `ProblemDetails`
+- Separate hardware execution results
+
+---
+
+## Performance awareness
+
+Performance-sensitive controller behavior is benchmarked instead of assumed to
+be fast.
+
+---
+
+## Portability
+
+The project currently supports:
+
+```text
+Local development
+Windows + MSVC + .NET
+
+Continuous integration
+Linux + native C/C++ + .NET
+```
+
+---
+
+## Documented decisions
+
+Important architectural decisions are recorded using ADRs.
+
+---
+
+# Development workflow
+
+The project uses feature branches and pull requests.
+
+```text
+main
+  │
+  ▼
+feature branch
+  │
+  ▼
+small implementation
+  │
+  ▼
+format
+  │
+  ▼
+build
+  │
+  ▼
+tests
+  │
+  ▼
+inspect diff
+  │
+  ▼
+commit
+  │
+  ▼
+push
+  │
+  ▼
+draft pull request
+  │
+  ▼
+GitHub Actions
+  │
+  ▼
+review
+  │
+  ▼
+squash merge
+  │
+  ▼
+main
+```
+
+This keeps the Git history incremental and makes architectural evolution easier
+to understand.
+
+---
+
+# Milestones
+
+## Milestone 1: Project foundation - Complete
+
+- [x] Repository structure
+- [x] Documentation
+- [x] Python package setup
+- [x] Battery simulation
+- [x] Unit tests
+- [x] Linting
+- [x] Static type checking
+- [x] Continuous integration
+
+---
+
+## Milestone 2: Energy simulation - Complete
+
+- [x] Solar generation model
+- [x] Building consumption model
+- [x] Grid connection model
+- [x] Simulation timeline
+- [x] Energy measurements
+- [x] Scenario configuration
+
+---
+
+## Milestone 3: Control logic - Complete
+
+- [x] C++ project setup
+- [x] Measurement input
+- [x] Control commands
+- [x] Deterministic control rules
+- [x] Controller operating limits
+- [x] State-of-charge protection
+- [x] Unit-test infrastructure
+- [x] Performance benchmarks
+- [x] Linux CI
+
+---
+
+## Milestone 4: Hardware abstraction - Complete
+
+- [x] C project setup
+- [x] Sensor interfaces
+- [x] Actuator interfaces
+- [x] Simulated sensors
+- [x] Simulated actuators
+- [x] Failure injection
+- [x] Hardware error normalization
+- [x] C++ integration
+- [x] Mixed C/C++ build
+- [x] Integration testing
+- [x] Linux C CI
+
+---
+
+## Milestone 5: Backend API and native integration - Complete
+
+- [x] ASP.NET Core solution
+- [x] .NET 10 backend
+- [x] System-status endpoint
+- [x] Application control boundary
+- [x] `IControlDecisionService`
+- [x] `IControllerGateway`
+- [x] Architecture Decision Record for .NET/C++ integration
+- [x] Versioned C ABI
+- [x] Native C++ adapter
+- [x] Native shared library
+- [x] Source-generated `LibraryImport`
+- [x] Explicit ABI structures
+- [x] Native ABI contract tests
+- [x] Runtime native integration tests
+- [x] `SafeHandle` resource ownership
+- [x] `NativeControllerGateway`
+- [x] Strongly typed configuration
+- [x] Startup configuration validation
+- [x] Dependency injection
+- [x] Liveness health check
+- [x] Native-controller readiness health check
+- [x] HTTP control decision endpoint
+- [x] Explicit request and response contracts
+- [x] End-to-end HTTP-to-C++ integration tests
+- [x] Backend GitHub Actions quality validation
+
+Current backend path:
+
+```text
+HTTP
+  ↓
+ASP.NET Core
+  ↓
+Application
+  ↓
+Native gateway
+  ↓
+C ABI
+  ↓
 C++
 ```
 
-This allows the top-level controller build to include the hardware subproject
-and validate the mixed-language integration.
-
-## C++ testing infrastructure
-
-The C++ component uses:
-
-* Catch2 as the C++ test framework
-* CTest as the CMake-integrated test runner
-
-Catch2 provides the test API, including test cases and assertions.
-
-CTest provides test discovery and execution at the build-system level.
-
-The relationship is:
-
-```text
-C++ test source
-      │
-      ▼
-Catch2
-      │
-      ▼
-gridflex_controller_tests
-      │
-      ▼
-CTest
-      │
-      ▼
-Pass / fail result
-```
-
-The same CTest integration is used locally and through GitHub Actions.
-
-The current C++ test executable includes tests for:
-
-```text
-EnergyMeasurement
-        │
-        ├── validation
-        ├── value preservation
-        └── grid-net calculation
-
-ControlCommand
-        │
-        ├── validation
-        ├── idle behavior
-        └── active-command behavior
-
-ControllerLimits
-        │
-        ├── valid configuration
-        └── invalid-boundary rejection
-
-EnergyController
-        │
-        ├── deterministic decisions
-        ├── requested-power calculation
-        ├── balance tolerance
-        ├── charge and discharge power limits
-        └── state-of-charge protection
-
-HardwareCommandExecutor
-        │
-        ├── command translation
-        ├── battery routing
-        ├── grid routing
-        ├── complete-state execution
-        ├── partial failure handling
-        ├── normalized error reporting
-        └── defensive action validation
-```
-
-An additional integration case tests:
-
-```text
-EnergyMeasurement
-        │
-        ▼
-EnergyController
-        │
-        ▼
-ControlCommand
-        │
-        ▼
-HardwareCommandExecutor
-        │
-        ▼
-C hardware abstraction
-        │
-        ▼
-Simulated actuator state
-```
-
-## C testing infrastructure
-
-The C hardware project uses lightweight native C test executables registered
-through CTest.
-
-The test targets are:
-
-```text
-gridflex_sensor_tests
-gridflex_actuator_tests
-gridflex_simulated_sensor_tests
-gridflex_simulated_actuator_tests
-gridflex_error_tests
-```
-
-Each executable returns a process exit code that allows CTest to determine
-whether the test target succeeded.
-
-The C tests verify the generic hardware contracts independently from the C++
-controller.
-
-## C++ benchmark infrastructure
-
-The controller benchmark is built as a separate executable:
-
-```text
-energy_controller_benchmark.cpp
-              │
-              ▼
-gridflex_controller_benchmark
-              │
-              │ links against
-              ▼
-gridflex_controller
-```
-
-Benchmark builds are controlled through the CMake option:
-
-```text
-GRIDFLEX_BUILD_BENCHMARKS
-```
-
-The default value is:
-
-```text
-OFF
-```
-
-This means normal users of the controller do not have to build performance
-tooling.
+---
 
-Benchmark development enables it explicitly:
+## Milestone 6: Containers and Linux deployment
 
-```text
--DGRIDFLEX_BUILD_BENCHMARKS=ON
-```
+Next major milestone.
 
-The benchmark currently executes three decision paths:
+Planned work includes:
 
-```text
-EnergyMeasurement
-        │
-        ▼
-EnergyController::decide()
-        │
-        ├── Surplus  → ChargeBattery
-        ├── Deficit  → DischargeBattery
-        └── Balanced → Idle
-        │
-        ▼
-ControlCommand
-```
+- [ ] Native-library deployment packaging
+- [ ] Backend Linux runtime packaging
+- [ ] Backend Dockerfile
+- [ ] Multi-stage native + .NET build
+- [ ] Docker Compose
+- [ ] Container health checks
+- [ ] Environment configuration
+- [ ] Development scripts
+- [ ] Reproducible local container startup
 
-Measurement objects and controller configuration are constructed before the
-timed loop.
+Already available:
 
-The timed loop therefore focuses on the controller decision path rather than
-measurement construction and validation.
+- [x] Linux Python CI
+- [x] Linux C CI
+- [x] Linux C++ CI
+- [x] Linux backend CI
 
-Each case performs:
-
-```text
-100,000 warmup iterations
-          │
-          ▼
-10,000,000 measured iterations
-          │
-          ▼
-elapsed time
-          │
-          ├── nanoseconds per decision
-          └── decisions per second
-```
+---
 
-The benchmark consumes each produced command through a checksum.
+## Milestone 7: DevOps and Azure
 
-Conceptually:
+- [x] GitHub Actions foundation
+- [x] Python quality workflow
+- [x] C quality workflow
+- [x] C++ quality workflow
+- [x] Backend quality workflow
+- [ ] Container image creation
+- [ ] Automated container build
+- [ ] Azure deployment
+- [ ] Environment-specific deployment configuration
+- [ ] Monitoring
+- [ ] Metrics
+- [ ] Centralized logs
+- [ ] Dependency scanning
+- [ ] Container scanning
 
-```text
-EnergyController::decide()
-          │
-          ▼
-ControlCommand
-          │
-          ▼
-checksum
-```
+---
 
-The checksum has no energy-domain meaning.
+## Milestone 8: Frontend dashboard
 
-Its purpose is to make benchmark output observable so that compiler
-optimization cannot trivially discard unused controller results.
+Planned features include:
 
-The hardware executor is deliberately not part of this controller decision
-microbenchmark.
+- [ ] System overview
+- [ ] Battery status
+- [ ] Solar production
+- [ ] Building consumption
+- [ ] Grid import and export
+- [ ] Controller decisions
+- [ ] System health
+- [ ] Alerts
+- [ ] Controller history
 
-Controller decision performance and hardware execution behavior remain separate
-measurement concerns.
+---
 
-## Security considerations
+# Running the project
 
-The current version runs as a local simulation and does not control physical
-equipment.
+## Python simulation
 
-Later security work may include:
-
-* Authentication
-* Authorization
-* Input validation at service boundaries
-* Secret management
-* Secure service communication
-* Dependency scanning
-* Container scanning
-* Audit logging
-
-## Safety considerations
-
-GridFlex EMS is an educational software simulation.
-
-It must not be used to control real batteries, electrical installations,
-industrial equipment or energy infrastructure.
-
-The project does not implement certified electrical safety functionality,
-protection systems or production-ready control logic.
-
-Safety-related controller and hardware behavior in the project remains
-educational and simulated.
-
-The simulated hardware interfaces are designed for learning and testing.
-
-They must not be interpreted as certified device drivers or production safety
-systems.
-
-## Out of scope
-
-The current GridFlex EMS project does not include:
-
-* Control of real electrical equipment
-* Certified safety functionality
-* Real PLC communication
-* Production battery management protocols
-* Electrical protection systems
-* Grid synchronization
-* Regulatory compliance
-* Real-time operating system guarantees
-* Production deployment to industrial installations
-
-## Technology choices
-
-The technology responsibilities are:
-
-| Area                    | Technology          | Purpose                               | Status      |
-| ----------------------- | ------------------- | ------------------------------------- | ----------- |
-| Backend                 | C# and ASP.NET Core | APIs and application coordination     | Next        |
-| Simulation              | Python              | Energy models and scenario simulation | Implemented |
-| Controller              | C++                 | Performance-oriented control logic    | Implemented |
-| Hardware abstraction    | C                   | Low-level and embedded concepts       | Implemented |
-| Containers              | Docker              | Reproducible runtime environments     | Planned     |
-| CI/CD                   | GitHub Actions      | Automated builds and tests            | Implemented |
-| Cloud                   | Microsoft Azure     | Deployment and observability          | Planned     |
-| Development environment | Windows and Linux   | Cross-platform development            | Active      |
-
-Each technology must have a clear responsibility.
-
-A technology will not be added only to increase the number of technologies in
-the repository.
-
-## Documentation
-
-Technical documentation is stored in the `docs` directory.
-
-The main architecture document is:
-
-[GridFlex EMS Architecture](docs/architecture.md)
-
-The detailed Python simulation architecture is:
-
-[Python Simulation Architecture](docs/simulation-architecture.md)
-
-Important architectural decisions are stored as Architecture Decision Records
-in:
-
-```text
-docs/decisions/
-```
-
-Each Architecture Decision Record documents:
-
-* The technical context
-* The selected decision
-* Alternatives considered
-* Positive consequences
-* Negative consequences
-
-## Running the Python simulation
-
-The Python simulation package is located in:
+The Python package is located in:
 
 ```text
 simulation/
@@ -2579,70 +2030,43 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-Run the demonstration scenario:
+Run the simulation:
 
 ```powershell
 gridflex-simulation
 ```
 
-## Running the Python tests
-
-From the `simulation` directory:
+Run tests:
 
 ```powershell
 python -m pytest
 ```
 
-Run tests with coverage:
+Run coverage:
 
 ```powershell
 python -m pytest --cov=gridflex_simulation --cov-report=term-missing
 ```
 
-## Running Python linting
-
-From the `simulation` directory:
+Run Ruff:
 
 ```powershell
 python -m ruff check .
 ```
 
-Automatically fix supported Ruff findings:
-
-```powershell
-python -m ruff check . --fix
-```
-
-## Running Python static type checking
-
-From the `simulation` directory:
+Run mypy:
 
 ```powershell
 python -m mypy
 ```
 
-## Running the complete Python quality check
+---
 
-From the `simulation` directory:
+# Building the C hardware layer
 
-```powershell
-python -m ruff check .
-python -m mypy
-python -m pytest --cov=gridflex_simulation --cov-report=term-missing
-```
+On Windows, initialize a Visual Studio Developer PowerShell environment first.
 
-## Building the C hardware layer
-
-The standalone C hardware project is located in:
-
-```text
-hardware/
-```
-
-On Windows, initialize a Visual Studio Developer PowerShell environment before
-building.
-
-Configure the hardware project with tests enabled:
+Configure:
 
 ```powershell
 cmake `
@@ -2651,7 +2075,7 @@ cmake `
   -DBUILD_TESTING=ON
 ```
 
-Build the Release configuration:
+Build Release:
 
 ```powershell
 cmake `
@@ -2659,9 +2083,7 @@ cmake `
   --config Release
 ```
 
-## Running the C hardware tests
-
-Run the Release hardware tests:
+Run tests:
 
 ```powershell
 ctest `
@@ -2670,50 +2092,19 @@ ctest `
   --output-on-failure
 ```
 
-The hardware project currently registers five CTest targets:
-
-```text
-gridflex_hardware_sensor_tests
-gridflex_hardware_actuator_tests
-gridflex_hardware_simulated_sensor_tests
-gridflex_hardware_simulated_actuator_tests
-gridflex_hardware_error_tests
-```
-
-## Running the C hardware CLI
-
-After building the Release configuration on Windows:
+Run the hardware CLI:
 
 ```powershell
 & ".\hardware\build\Release\gridflex_hardware_cli.exe"
 ```
 
-The CLI is intentionally small.
+---
 
-Its purpose is to provide a native executable that proves that the C hardware
-library can be built, linked and executed independently.
+# Building the C++ controller
 
-## Building the C++ controller
+On Windows, initialize a Visual Studio Developer PowerShell environment first.
 
-The C++ controller is located in:
-
-```text
-controller/
-```
-
-The controller build now includes the C hardware project as a dependency.
-
-The top-level controller CMake project therefore enables both:
-
-```text
-C
-C++
-```
-
-On Windows, initialize a Visual Studio Developer PowerShell environment before
-building.
-
-Configure the project with tests enabled:
+Configure:
 
 ```powershell
 cmake `
@@ -2722,15 +2113,7 @@ cmake `
   -DBUILD_TESTING=ON
 ```
 
-Build the Debug configuration:
-
-```powershell
-cmake `
-  --build controller/build `
-  --config Debug
-```
-
-Build the Release configuration:
+Build Release:
 
 ```powershell
 cmake `
@@ -2738,18 +2121,7 @@ cmake `
   --config Release
 ```
 
-## Running the integrated C/C++ tests
-
-Run the Debug tests:
-
-```powershell
-ctest `
-  --test-dir controller/build `
-  -C Debug `
-  --output-on-failure
-```
-
-Run the Release tests:
+Run the integrated C/C++ tests:
 
 ```powershell
 ctest `
@@ -2758,58 +2130,24 @@ ctest `
   --output-on-failure
 ```
 
-The current expected integrated result is:
+Expected native baseline:
 
 ```text
-100% tests passed
-0 tests failed out of 52
+52 tests passed
+0 tests failed
 ```
 
-The 52 CTest tests consist of:
-
-```text
-47 discovered Catch2 test cases
-5 native C hardware test targets
-```
-
-Run the C++ Catch2 executable directly on Windows:
-
-```powershell
-& ".\controller\build\Release\gridflex_controller_tests.exe"
-```
-
-Current local baseline:
-
-```text
-All tests passed
-148 assertions in 47 test cases
-```
-
-## Running the C++ controller CLI
-
-After building the Release configuration on Windows:
+Run the controller CLI:
 
 ```powershell
 & ".\controller\build\Release\gridflex_controller_cli.exe"
 ```
 
-Current output:
+---
 
-```text
-GridFlex EMS C++ Controller
-```
+# Running the C++ benchmark
 
-The CLI is intentionally small.
-
-Its purpose at the current stage is to verify that the reusable controller
-library can be linked into and consumed by an executable.
-
-Controller behavior and hardware integration remain implemented behind reusable
-library interfaces rather than inside the CLI.
-
-## Running the C++ controller benchmark
-
-Configure the controller with benchmark builds enabled:
+Configure benchmark builds:
 
 ```powershell
 cmake `
@@ -2819,7 +2157,7 @@ cmake `
   -DGRIDFLEX_BUILD_BENCHMARKS=ON
 ```
 
-Build the Release benchmark:
+Build:
 
 ```powershell
 cmake `
@@ -2828,472 +2166,258 @@ cmake `
   --target gridflex_controller_benchmark
 ```
 
-Run the benchmark on Windows:
+Run:
 
 ```powershell
 & ".\controller\build\Release\gridflex_controller_benchmark.exe"
 ```
 
-The benchmark currently reports:
+---
+
+# Building the backend
+
+The backend solution is:
 
 ```text
-Total measured time
-Average nanoseconds per decision
-Decisions per second
-Checksum
+backend/GridFlex.slnx
 ```
 
-for:
+Build:
 
-```text
-Surplus decision
-Deficit decision
-Balanced decision
+```powershell
+dotnet build `
+  "backend/GridFlex.slnx" `
+  --configuration Release
 ```
 
-The current configuration uses:
+The backend uses the native controller shared library.
 
-```text
-Warmup iterations per case:   100,000
-Measured iterations per case: 10,000,000
+For local Windows testing, make the native Release build available through
+`PATH`:
+
+```powershell
+$env:PATH =
+  "$(Resolve-Path 'controller/build/Release');$env:PATH"
 ```
 
-The benchmark should be run using a Release build.
+Verify the DLL:
 
-Debug builds are intended for debugging and correctness work and are not used as
-the controller performance baseline.
-
-Performance results should be interpreted as measurements from the machine and
-compiler configuration on which they were produced.
-
-They are not portable timing guarantees.
-
-## Current controller architecture
-
-The controller has explicit models on both sides of its decision boundary, a
-validated operating-limit configuration and a separate hardware-execution
-boundary.
-
-```text
-                  ControllerLimits
-                        │
-                        │ configuration
-                        ▼
-                  ┌──────────────┐
-                  │              │
-EnergyMeasurement ─────► EnergyController
-                  │              │
-                  └──────┬───────┘
-                         │
-                         │ deterministic decision
-                         ▼
-                  ControlCommand
-                         │
-                         ▼
-              HardwareCommandExecutor
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-              ▼                     ▼
-      Battery actuator       Grid actuator
-              │                     │
-              └──────────┬──────────┘
-                         ▼
-             C Hardware Abstraction
+```powershell
+Get-ChildItem `
+  "controller/build/Release/gridflex_controller_native.dll"
 ```
 
-`EnergyMeasurement` describes what the controller knows about the current
-energy situation.
+Run backend tests:
 
-`ControllerLimits` describes the operating boundaries the controller must
-respect.
+```powershell
+dotnet test `
+  "backend/GridFlex.slnx" `
+  --configuration Release `
+  --no-build
+```
 
-`ControlCommand` describes what the controller is allowed to request.
-
-`HardwareCommandExecutor` translates a valid controller command into explicit C
-hardware actuator commands.
-
-The C hardware layer owns generic device contracts and concrete simulated device
-behavior.
-
-Separating these responsibilities means that:
-
-* Measurement validation is independent of decision logic
-* Command validation is independent of decision logic
-* Operating-limit validation is independent of individual measurements
-* Controller rules can operate on already valid input
-* Controller decisions can be constrained by validated configuration
-* Hardware I/O is separate from controller decision logic
-* C hardware interfaces are independent of C++ controller implementation
-* Simulated hardware can be replaced without changing controller rules
-* Hardware failures can be reported independently for battery and grid devices
-* Each responsibility can be tested independently
-
-## C++ controller decision logic
-
-The C++ `EnergyController` transforms a validated `EnergyMeasurement` into a
-validated `ControlCommand`.
-
-The controller currently implements deterministic battery-first control rules.
-
-At a high level:
+Current expected result:
 
 ```text
-EnergyMeasurement
+29 tests passed
+0 tests failed
+```
+
+---
+
+# Running the ASP.NET Core API
+
+The API project is:
+
+```text
+backend/GridFlex.Api
+```
+
+Start it with:
+
+```powershell
+dotnet run `
+  --project "backend/GridFlex.Api/GridFlex.Api.csproj"
+```
+
+The repository also contains:
+
+```text
+backend/GridFlex.Api/GridFlex.Api.http
+```
+
+with ready-to-run requests for:
+
+```text
+GET  /api/system/status
+GET  /health/live
+GET  /health/ready
+POST /api/control/decision
+```
+
+---
+
+# Documentation
+
+Detailed documentation lives under:
+
+```text
+docs/
+```
+
+Main architecture document:
+
+[GridFlex EMS Architecture](docs/architecture.md)
+
+Python architecture:
+
+[Python Simulation Architecture](docs/simulation-architecture.md)
+
+Architecture decisions:
+
+```text
+docs/decisions/
+```
+
+Current ADRs include:
+
+- [ADR 0001: Use multiple languages](docs/decisions/0001-use-multiple-languages.md)
+- [ADR 0002: Use a C ABI for .NET to C++ controller interoperability](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
+
+---
+
+# Technology choices
+
+| Area                    | Technology                      | Responsibility                         | Status      |
+| ----------------------- | ------------------------------- | -------------------------------------- | ----------- |
+| Backend                 | C# / ASP.NET Core / .NET 10     | APIs and application coordination      | Implemented |
+| Application boundary    | C# interfaces                   | Use-case and infrastructure separation | Implemented |
+| Native interoperability | `LibraryImport` + C ABI         | .NET-to-C++ integration                | Implemented |
+| Controller              | C++20                           | Deterministic control logic            | Implemented |
+| Hardware abstraction    | C17                             | Low-level interfaces and simulation    | Implemented |
+| Simulation              | Python 3.12                     | Energy models and scenarios            | Implemented |
+| Native build            | CMake                           | C and C++ builds                       | Implemented |
+| Testing                 | xUnit / Catch2 / CTest / pytest | Automated verification                 | Implemented |
+| CI                      | GitHub Actions                  | Automated quality validation           | Implemented |
+| Containers              | Docker                          | Reproducible runtime environment       | Planned     |
+| Cloud                   | Microsoft Azure                 | Deployment and observability           | Planned     |
+| Development             | Windows + Linux                 | Cross-platform engineering             | Active      |
+
+Every technology has a defined responsibility.
+
+Technologies are not added simply to increase the number of technologies in the
+repository.
+
+---
+
+# Security considerations
+
+The current project runs as an educational development system and does not yet
+contain authentication.
+
+Future work may include:
+
+- Authentication
+- Authorization
+- Role-based access control
+- Secret management
+- Secure service communication
+- Dependency scanning
+- Container scanning
+- Audit logging
+
+Input validation is already applied at multiple application and native
+boundaries.
+
+---
+
+# Safety considerations
+
+GridFlex EMS is an educational software simulation.
+
+It must not be used to control:
+
+- Real batteries
+- Electrical installations
+- Industrial equipment
+- Energy infrastructure
+
+The project does not implement:
+
+- Certified electrical safety functions
+- Electrical protection systems
+- Production battery management protocols
+- Real PLC communication
+- Production grid synchronization
+- Hard real-time guarantees
+- Regulatory compliance
+
+The C hardware interfaces and simulated devices exist for learning, software
+design and automated testing.
+
+They are not certified device drivers or safety systems.
+
+---
+
+# Out of scope
+
+The current project does not include:
+
+- Control of real electrical equipment
+- Certified safety functionality
+- Real PLC communication
+- Production BMS integration
+- Electrical protection
+- Grid synchronization
+- Regulatory compliance
+- Hard real-time operating-system guarantees
+- Production industrial deployment
+
+---
+
+# Current development direction
+
+Milestones 1 through 5 are complete.
+
+The current major architectural path is:
+
+```text
+Python simulation
+        │
+        │ future integration
+        ▼
+ASP.NET Core API
         │
         ▼
-EnergyController
-        │
-        ├── Balanced energy → Idle
-        ├── Energy surplus  → ChargeBattery
-        └── Energy deficit  → DischargeBattery
-        │
-        ▼
-ControlCommand
-```
-
-The controller uses a small floating-point tolerance around zero so that tiny
-numeric residuals do not result in unnecessary battery commands.
-
-For an active command, interval energy is converted to requested power using:
-
-```text
-requested power kW = |net energy kWh| / interval hours
-```
-
-For example:
-
-```text
-Net energy: 10 kWh
-Interval:   0.5 hours
-
-Requested power:
-10 kWh / 0.5 h = 20 kW
-```
-
-### Controller operating limits
-
-The controller receives its operating boundaries through a validated
-`ControllerLimits` object.
-
-The current configuration contains:
-
-* Maximum charge power
-* Maximum discharge power
-* Minimum battery state of charge
-* Maximum battery state of charge
-
-These values are provided to the controller instead of being hardcoded into the
-decision logic.
-
-Conceptually:
-
-```text
-ControllerLimits ─────┐
-                      │
-                      ▼
-                EnergyController
-                      ▲
-                      │
-EnergyMeasurement ────┘
-                      │
-                      ▼
-                ControlCommand
-```
-
-For battery charging, the final command power is the minimum of:
-
-```text
-Requested charge power
-Configured maximum charge power
-Power allowed by remaining battery capacity
-```
-
-For example:
-
-```text
-Requested charge power:        50 kW
-Maximum charge power:          25 kW
-Remaining SOC allows:          10 kW
-
-Final ChargeBattery command:   10 kW
-```
-
-The same principle applies when discharging.
-
-The final discharge power is the minimum of:
-
-```text
-Requested discharge power
-Configured maximum discharge power
-Power available above the minimum battery reserve
-```
-
-If the battery is already at its maximum state of charge, further charging is
-prevented and the controller returns an `Idle` command.
-
-If the battery is already at its minimum state of charge, further discharging
-is prevented in the same way.
-
-This separates controller intent from operating constraints:
-
-```text
-Energy condition
-      │
-      ▼
-Desired controller action
-      │
-      ▼
-Power and SOC constraints
-      │
-      ▼
-Allowed ControlCommand
-```
-
-Grid fallback behavior is intentionally not part of the current
-`EnergyController` decision logic yet.
-
-For example, if a deficit remains when the battery reaches its minimum state of
-charge, the controller currently returns `Idle` rather than automatically
-creating an `ImportFromGrid` command.
-
-Grid prioritization and fallback behavior can be introduced separately so that
-battery control, operating constraints and grid strategy remain independently
-testable.
-
-## C++ controller performance measurement
-
-Performance measurement was introduced after the initial deterministic
-controller behavior and operating limits were established.
-
-This sequence makes it possible to benchmark a known controller baseline before
-additional strategy and integration complexity is introduced.
-
-The current benchmark flow is:
-
-```text
-Validated EnergyMeasurement
-          │
-          ▼
-EnergyController::decide()
-          │
-          ▼
-ControlCommand
-          │
-          ▼
-Minimal checksum consumption
-          │
-          ▼
-Timing result
-```
-
-Three control paths are measured independently:
-
-```text
-Surplus
-   │
-   ▼
-ChargeBattery
-
-Deficit
-   │
-   ▼
-DischargeBattery
-
-Balanced
-   │
-   ▼
-Idle
-```
-
-Balanced decisions currently take a shorter logical path through the controller
-than active charge or discharge decisions.
-
-The benchmark therefore makes both controller performance and differences
-between decision paths visible.
-
-The benchmark baseline is intended to support comparisons as future controller
-behavior is added.
-
-The hardware executor remains outside this microbenchmark because hardware
-execution and pure controller decision performance are different concerns.
-
-## Milestone 4 completion
-
-Milestone 4 introduced the first low-level hardware boundary beneath the C++
-controller.
-
-The completed implementation sequence was:
-
-```text
-C project setup
-      │
-      ▼
-Sensor interfaces
-      │
-      ▼
-Actuator interfaces
-      │
-      ▼
-Simulated sensor devices
-      │
-      ▼
-Simulated actuator devices
-      │
-      ▼
-Error handling
-      │
-      ▼
-Controller integration
-```
-
-The resulting native architecture is:
-
-```text
-EnergyMeasurement
-      │
-      ▼
-C++ EnergyController
-      │
-      │ ControlCommand
-      ▼
-HardwareCommandExecutor
-      │
-      ▼
-C Hardware Abstraction Layer
-      │
-      ├── Sensor interfaces
-      ├── Actuator interfaces
-      ├── Simulated sensors
-      ├── Simulated actuators
-      └── Error normalization
-```
-
-The purpose of the C hardware abstraction layer is not to add another language
-for its own sake.
-
-It introduces a component with a different technical responsibility:
-
-```text
-Python
-Simulation and reference behavior
-
-C++
-Deterministic and performance-oriented control logic
-
-C
-Low-level hardware-facing interfaces
-```
-
-The controller-to-hardware integration demonstrates that the two native
-languages can interact through explicit, testable contracts without moving
-hardware behavior into the controller domain logic.
-
-## Next development step
-
-Milestone 4 is complete.
-
-Completed hardware-abstraction work:
-
-```text
-C project foundation                 Complete
-C17 CMake configuration              Complete
-Static C hardware library            Complete
-Hardware CLI                         Complete
-Windows MSVC build                   Complete
-Linux C CI                           Complete
-Sensor interface                     Complete
-Actuator interface                   Complete
-Simulated sensor devices             Complete
-Simulated actuator devices           Complete
-Failure injection                    Complete
-Hardware error model                 Complete
-Hardware error normalization         Complete
-C++ compatible C headers             Complete
-Controller hardware executor         Complete
-Complete-state actuator mapping      Complete
-Partial failure reporting            Complete
-Mixed C/C++ CMake build              Complete
-Controller-to-hardware integration   Complete
-End-to-end integration test          Complete
-Integrated C/C++ CTest execution     Complete
-```
-
-The next development milestone is:
-
-```text
-Milestone 5: Backend API
-```
-
-The planned implementation sequence is:
-
-```text
-ASP.NET Core solution
-      │
-      ▼
-Backend project structure
-      │
-      ▼
-REST endpoints
-      │
-      ▼
 Application services
-      │
-      ▼
-Health checks
-      │
-      ▼
-Structured logging
-      │
-      ▼
-Integration contracts
-      │
-      ▼
-Simulation and controller integration
+        │
+        ▼
+Native controller gateway
+        │
+        ▼
+Versioned C ABI
+        │
+        ▼
+C++ EnergyController
+        │
+        ▼
+C hardware abstraction
 ```
 
-This introduces the application-facing layer above the existing energy
-components:
+The next major focus is:
 
 ```text
-                 Future Frontend
-                       │
-                       │ HTTP
-                       ▼
-               ASP.NET Core API
-                       │
-                       │ application coordination
-                       ▼
-          Energy management components
-              │                  │
-              ▼                  ▼
-      Python Simulation     Native Controller
-                                  │
-                                  ▼
-                           C Hardware Layer
+Milestone 6
+Containers and Linux deployment
 ```
 
-The backend should coordinate application-level use cases without moving
-simulation, controller or hardware-domain responsibilities into the API layer.
+The goal is to package the already working ASP.NET Core + native C++ integration
+into a reproducible deployment unit without weakening the existing application
+and native boundaries.
 
-The communication mechanism between the ASP.NET Core backend and the existing
-Python/C++/C components will be selected deliberately.
+---
 
-That decision should consider:
-
-* Clear component boundaries
-* Testability
-* Portability
-* Development complexity
-* Failure handling
-* Observability
-* Containerization
-* Future deployment requirements
-
-Any important communication decision should be documented through an
-Architecture Decision Record before the system becomes dependent on it.
-
-## Disclaimer
+# Disclaimer
 
 GridFlex EMS is an independent educational portfolio project.
 

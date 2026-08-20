@@ -9,4 +9,27 @@ Accept: application/json
 
 GET {{GridFlex.Api_HostAddress}}/health/live
 
+### Readiness
+
+GET {{GridFlex.Api_HostAddress}}/health/ready
+
+### Create control decision
+
+POST {{GridFlex.Api_HostAddress}}/api/control/decision
+Content-Type: application/json
+Accept: application/json
+
+{
+  "stepNumber": 42,
+  "elapsedTimeHours": 1.0,
+  "intervalHours": 0.25,
+  "generatedEnergyKwh": 5.0,
+  "consumedEnergyKwh": 2.0,
+  "netEnergyKwh": 3.0,
+  "batteryStateOfChargeKwh": 10.0,
+  "gridImportEnergyKwh": 0.0,
+  "gridExportEnergyKwh": 0.0,
+  "unresolvedEnergyKwh": 0.0
+}
+
 ###
