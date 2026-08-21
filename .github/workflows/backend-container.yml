@@ -1,0 +1,89 @@
+name: Backend Container
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+
+jobs:
+    container:
+        name: Build and smoke test container
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v6
+
+            - name: Build backend container image
+              run: >-
+                  docker build
+                  --file backend/Dockerfile
+                  --tag gridflex-api:ci
+                  .
+
+            - name: Smoke test backend container
+              run: |
+                  set -euo pipefail
+
+                  container_name="gridflex-api-ci"
+
+                  cleanup() {
+                      docker logs "${container_name}" || true
+                      docker rm \
+                          --force \
+                          "${container_name}" \
+                          > /dev/null 2>&1 || true
+                  }
+
+                  trap cleanup EXIT
+
+                  docker run \
+                      --detach \
+                      --name "${container_name}" \
+                      --publish 5080:8080 \
+                      gridflex-api:ci
+
+                  for attempt in $(seq 1 30); do
+                      if curl --fail --silent --show-error \
+                          http://127.0.0.1:5080/health/live \
+                          > /dev/null; then
+                          break
+                      fi
+
+                      if [[ "$(docker inspect \
+                          --format '{{.State.Running}}' \
+                          "${container_name}")" != "true" ]]; then
+                          exit 1
+                      fi
+
+                      if [[ "${attempt}" -eq 30 ]]; then
+                          exit 1
+                      fi
+
+                      sleep 1
+                  done
+
+                  curl --fail --silent --show-error \
+                      http://127.0.0.1:5080/health/ready \
+                      > /dev/null
+
+                  docker exec \
+                      "${container_name}" \
+                      test -f /app/lib/libgridflex_controller_native.so
+
+                  container_user_id="$(
+                      docker exec \
+                          "${container_name}" \
+                          id -u
+                  )"
+
+                  if [[ "${container_user_id}" -eq 0 ]]; then
+                      echo "Backend container must not run as root." >&2
+                      exit 1
+                  fi
