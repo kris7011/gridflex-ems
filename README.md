@@ -10,7 +10,10 @@ The project combines:
 - C++ for deterministic and performance-oriented control logic
 - C for hardware-facing abstractions
 - Python for simulation and reproducible energy scenarios
-- GitHub Actions for automated quality validation
+- CMake for native build orchestration
+- Docker for reproducible Linux runtime packaging
+- GitHub Container Registry for versioned container distribution
+- GitHub Actions for automated quality and deployment validation
 - Linux and Windows for cross-platform development and testing
 
 The current implementation includes a complete HTTP-to-native control path:
@@ -40,7 +43,116 @@ Versioned C ABI
 C++ EnergyController
 ```
 
+The backend is also packaged as a Linux container image and published
+automatically from `main` to GitHub Container Registry.
+
 The project is educational and does not control real electrical equipment.
+
+---
+
+## Quick start with Docker
+
+The fastest way to run the GridFlex backend is through the public container
+image published to GitHub Container Registry.
+
+No repository checkout or local .NET, C or C++ toolchain is required.
+
+You only need Docker with Linux container support.
+
+### Pull the image
+
+```bash
+docker pull ghcr.io/kris7011/gridflex-ems-backend:latest
+```
+
+The package is public, so authentication to GitHub Container Registry is not
+required.
+
+### Run the backend
+
+```bash
+docker run --rm \
+  --name gridflex-api \
+  --publish 5080:8080 \
+  ghcr.io/kris7011/gridflex-ems-backend:latest
+```
+
+The API is then available at:
+
+```text
+http://localhost:5080
+```
+
+### Verify liveness
+
+```bash
+curl http://localhost:5080/health/live
+```
+
+Expected response:
+
+```text
+Healthy
+```
+
+### Verify readiness
+
+```bash
+curl http://localhost:5080/health/ready
+```
+
+Expected response:
+
+```text
+Healthy
+```
+
+Readiness includes validation of the native C++ controller dependency.
+
+A successful readiness check therefore verifies that the application can load
+and initialize the managed-to-native controller integration.
+
+The published runtime image contains:
+
+- The ASP.NET Core backend
+- The native C++ controller shared library
+- The managed-to-native interoperability layer
+- Required .NET runtime dependencies
+
+The application runs inside the container as a non-root user.
+
+### Container image tags
+
+Images published from `main` receive two tags:
+
+```text
+latest
+sha-<full-git-commit-sha>
+```
+
+`latest` points to the most recently published `main` image and is convenient
+for trying the project.
+
+The commit-SHA tag provides a source-traceable link between a container image and
+the exact Git revision that produced it.
+
+Container tags remain mutable registry references.
+
+The immutable content identity is the image digest, for example:
+
+```text
+sha256:<digest>
+```
+
+Example source-traceable image tag:
+
+```bash
+docker pull \
+  ghcr.io/kris7011/gridflex-ems-backend:sha-<full-git-commit-sha>
+```
+
+See the [HTTP API](#http-api) section for the available endpoints and a complete
+control-decision example.
 
 ---
 
@@ -82,6 +194,7 @@ GridFlex EMS is designed to demonstrate practical experience with:
 - Windows
 - GitHub Actions
 - Docker
+- GitHub Container Registry
 - Microsoft Azure
 - Automated testing
 - Static analysis
@@ -155,7 +268,7 @@ Example decisions include:
 │  LibraryImport                              │
 │  SafeHandle                                 │
 │  ABI validation                             │
-│  Explicit mapping                          │
+│  Explicit mapping                           │
 └──────────────────────┬──────────────────────┘
                        │
                        │ Versioned C ABI
@@ -184,6 +297,31 @@ The Python simulation engine remains independently testable and currently acts
 as the simulation and reference-behavior component.
 
 Python-to-backend integration is a later architectural step.
+
+The backend deployment path currently adds another boundary around the running
+application:
+
+```text
+Git repository
+      │
+      ▼
+Multi-stage Docker build
+      │
+      ├── C/C++ native build
+      │
+      ├── CMake runtime installation
+      │
+      └── ASP.NET Core Linux publish
+      │
+      ▼
+Linux runtime package
+      │
+      ▼
+ASP.NET Core runtime image
+      │
+      ▼
+GitHub Container Registry
+```
 
 ---
 
@@ -227,6 +365,11 @@ The current backend implementation includes:
 - xUnit tests
 - ASP.NET Core integration tests
 - GitHub Actions backend quality validation
+- Linux runtime packaging
+- Multi-stage Docker packaging
+- Non-root container runtime
+- Automated container smoke testing
+- GitHub Container Registry publication
 
 The managed/native integration decision is documented in:
 
@@ -1441,12 +1584,13 @@ C++ EnergyController
 
 # Continuous integration
 
-The repository contains separate GitHub Actions quality workflows for:
+The repository contains separate GitHub Actions workflows for:
 
-- Python
-- C
-- C++
-- Backend
+- Python quality
+- C quality
+- C++ quality
+- Backend quality
+- Backend container validation and publication
 
 ## Python Quality
 
@@ -1500,10 +1644,53 @@ It includes:
 - Formatting validation
 - Build
 - Tests
-- Native controller integration
+- Native controller build
+- Native runtime installation
+- Linux backend runtime packaging
+- Packaged application smoke testing
+- Liveness validation
+- Readiness validation
 
 The native shared library is built and made available to the backend test
 environment so end-to-end interoperability can be validated in CI.
+
+The same native runtime is also included in the generated Linux backend runtime
+package.
+
+---
+
+## Backend Container
+
+The container workflow validates the complete Docker deployment unit.
+
+For pull requests and pushes to `main`, it:
+
+1. Builds `backend/Dockerfile`
+2. Starts the resulting Linux container
+3. Waits for `/health/live`
+4. Verifies `/health/ready`
+5. Verifies that `libgridflex_controller_native.so` exists
+6. Verifies that the application is not running as root
+7. Cleans up the test container
+
+On pull requests, image publication is deliberately skipped.
+
+After a successful push to `main`, the workflow additionally:
+
+1. Authenticates to GitHub Container Registry with `GITHUB_TOKEN`
+2. Builds the publishable image
+3. Tags it as `latest`
+4. Tags it with the full Git commit SHA
+5. Pushes both tags to GHCR
+
+Published image:
+
+```text
+ghcr.io/kris7011/gridflex-ems-backend
+```
+
+This creates a deployment artifact that can be pulled and run independently of
+the repository checkout.
 
 ---
 
@@ -1529,10 +1716,22 @@ Integrated C/C++
 29 tests
 
 GitHub Actions
-Python Quality   passed
-C Quality        passed
-C++ Quality      passed
-Backend Quality  passed
+Python Quality     passed
+C Quality          passed
+C++ Quality        passed
+Backend Quality    passed
+Backend Container  passed
+
+Container deployment
+Linux runtime package      passed
+Docker build               passed
+Container smoke test       passed
+Liveness                   passed
+Readiness                  passed
+Non-root runtime           passed
+Native library validation  passed
+GHCR publication           passed
+Anonymous GHCR pull        passed
 ```
 
 ---
@@ -1543,6 +1742,7 @@ Backend Quality  passed
 gridflex-ems/
 ├── .github/
 │   └── workflows/
+│       ├── backend-container.yml
 │       ├── backend-quality.yml
 │       ├── c-quality.yml
 │       ├── cpp-quality.yml
@@ -1559,6 +1759,9 @@ gridflex-ems/
 │   │   └── appsettings.json
 │   │
 │   ├── GridFlex.Api.Tests/
+│   ├── scripts/
+│   │   └── package-linux-runtime.sh
+│   ├── Dockerfile
 │   └── GridFlex.slnx
 │
 ├── controller/
@@ -1586,14 +1789,18 @@ gridflex-ems/
 │   ├── architecture.md
 │   └── simulation-architecture.md
 │
-├── docker/
-├── scripts/
 ├── .clang-format
+├── .dockerignore
 ├── .editorconfig
+├── .gitattributes
 ├── .gitignore
+├── global.json
 ├── LICENSE
 └── README.md
 ```
+
+Build and package output directories are intentionally excluded from version
+control.
 
 ---
 
@@ -1609,6 +1816,9 @@ Each component should have a small and understandable responsibility.
 
 Simulation, application coordination, controller logic, native
 interoperability, hardware access and presentation remain separate.
+
+Deployment packaging is also kept outside the application and controller domain
+logic.
 
 ---
 
@@ -1644,6 +1854,13 @@ ControlCommand
 Hardware
 GridFlexSensor
 GridFlexActuator
+```
+
+```text
+Deployment
+CMake install contract
+Linux runtime package
+Docker image
 ```
 
 ---
@@ -1731,6 +1948,7 @@ The project contains:
 - HTTP integration tests
 - Scenario tests
 - CI validation
+- Container smoke tests
 - Performance benchmarks
 
 ---
@@ -1747,6 +1965,8 @@ The backend currently exposes:
 /health/ready
 ```
 
+Liveness and readiness are also used during automated deployment validation.
+
 Logging and metrics will be expanded in later milestones.
 
 ---
@@ -1762,6 +1982,8 @@ Examples include:
 - Readiness failures
 - HTTP `ProblemDetails`
 - Separate hardware execution results
+- Failing CI quality gates
+- Failing container smoke tests
 
 ---
 
@@ -1782,6 +2004,9 @@ Windows + MSVC + .NET
 
 Continuous integration
 Linux + native C/C++ + .NET
+
+Deployment
+Linux container + ASP.NET Core runtime + native C++ shared library
 ```
 
 ---
@@ -1837,6 +2062,26 @@ squash merge
   │
   ▼
 main
+```
+
+Container publication is deliberately separated from pull-request validation.
+
+```text
+Pull request
+    │
+    ▼
+Build + smoke test
+    │
+    ▼
+No publication
+
+main
+    │
+    ▼
+Build + smoke test
+    │
+    ▼
+GHCR publication
 ```
 
 This keeps the Git history incremental and makes architectural evolution easier
@@ -1946,40 +2191,58 @@ C++
 
 ---
 
-## Milestone 6: Containers and Linux deployment
+## Milestone 6: Containers and Linux deployment - Core path complete
 
-Next major milestone.
+The core Linux deployment path is implemented.
 
-Planned work includes:
+Completed:
 
-- [ ] Native-library deployment packaging
-- [ ] Backend Linux runtime packaging
-- [ ] Backend Dockerfile
-- [ ] Multi-stage native + .NET build
-- [ ] Docker Compose
-- [ ] Container health checks
-- [ ] Environment configuration
-- [ ] Development scripts
-- [ ] Reproducible local container startup
+- [x] Native-library deployment packaging
+- [x] CMake runtime installation contract
+- [x] Backend Linux runtime packaging
+- [x] Framework-dependent Linux publish
+- [x] Backend Dockerfile
+- [x] Multi-stage native + .NET build
+- [x] ASP.NET Core runtime-only final image
+- [x] Native shared-library deployment
+- [x] Linux-sensitive LF repository rules
+- [x] Docker build-context exclusions
+- [x] Container liveness validation
+- [x] Container readiness validation
+- [x] Native-library container validation
+- [x] Non-root container runtime
+- [x] Reproducible local container startup
+- [x] Automated container smoke testing
+- [x] GitHub Container Registry publication
+- [x] `latest` container tag
+- [x] Commit-SHA container tag
+- [x] Public anonymous container pull
 
-Already available:
+Possible later deployment improvements include:
 
-- [x] Linux Python CI
-- [x] Linux C CI
-- [x] Linux C++ CI
-- [x] Linux backend CI
+- [ ] Docker Compose if multiple runtime services are introduced
+- [ ] Environment-specific container configuration
+- [ ] Deployment helper scripts
+- [ ] Additional container security scanning
+- [ ] Build-once / promote-the-tested-artifact workflow
 
 ---
 
 ## Milestone 7: DevOps and Azure
+
+Current DevOps foundation:
 
 - [x] GitHub Actions foundation
 - [x] Python quality workflow
 - [x] C quality workflow
 - [x] C++ quality workflow
 - [x] Backend quality workflow
-- [ ] Container image creation
-- [ ] Automated container build
+- [x] Backend container workflow
+- [x] Container image creation
+- [x] Automated container build
+- [x] Container smoke testing
+- [x] GitHub Container Registry publication
+- [x] Source-traceable commit-SHA image tagging
 - [ ] Azure deployment
 - [ ] Environment-specific deployment configuration
 - [ ] Monitoring
@@ -2007,6 +2270,36 @@ Planned features include:
 ---
 
 # Running the project
+
+## Recommended: Docker
+
+For the quickest end-to-end backend startup, use the public image:
+
+```bash
+docker pull ghcr.io/kris7011/gridflex-ems-backend:latest
+```
+
+```bash
+docker run --rm \
+  --name gridflex-api \
+  --publish 5080:8080 \
+  ghcr.io/kris7011/gridflex-ems-backend:latest
+```
+
+Then verify:
+
+```bash
+curl http://localhost:5080/health/live
+curl http://localhost:5080/health/ready
+```
+
+Both endpoints should return:
+
+```text
+Healthy
+```
+
+---
 
 ## Python simulation
 
@@ -2225,6 +2518,104 @@ Current expected result:
 
 ---
 
+# Building the Linux backend runtime package
+
+The repository contains:
+
+```text
+backend/scripts/package-linux-runtime.sh
+```
+
+The packaging script creates a framework-dependent Linux runtime package:
+
+```text
+backend/dist/linux-x64/
+├── app/
+│   ├── GridFlex.Api.dll
+│   ├── GridFlex.Api.deps.json
+│   ├── GridFlex.Api.runtimeconfig.json
+│   ├── appsettings.json
+│   └── application dependencies
+└── lib/
+    └── libgridflex_controller_native.so
+```
+
+The package deliberately separates:
+
+```text
+managed application runtime
+```
+
+from:
+
+```text
+native runtime dependency
+```
+
+The Docker build reuses this deployment package instead of copying intermediate
+CMake or .NET build directories directly into the final image.
+
+---
+
+# Building the Docker image locally
+
+Build from the repository root:
+
+```powershell
+docker build `
+  --file backend/Dockerfile `
+  --tag gridflex-api:local `
+  .
+```
+
+Run:
+
+```powershell
+docker run `
+  --detach `
+  --name gridflex-api-local `
+  --publish 5080:8080 `
+  gridflex-api:local
+```
+
+Verify:
+
+```powershell
+Invoke-WebRequest `
+  -UseBasicParsing `
+  "http://localhost:5080/health/live"
+```
+
+```powershell
+Invoke-WebRequest `
+  -UseBasicParsing `
+  "http://localhost:5080/health/ready"
+```
+
+Inspect the runtime user:
+
+```powershell
+docker exec gridflex-api-local id
+```
+
+The application should run as the non-root `app` user.
+
+Verify the native runtime:
+
+```powershell
+docker exec `
+  gridflex-api-local `
+  test -f /app/lib/libgridflex_controller_native.so
+```
+
+Clean up:
+
+```powershell
+docker rm --force gridflex-api-local
+```
+
+---
+
 # Running the ASP.NET Core API
 
 The API project is:
@@ -2254,6 +2645,123 @@ GET  /health/live
 GET  /health/ready
 POST /api/control/decision
 ```
+
+---
+
+# Container deployment
+
+The production-style container path currently looks like this:
+
+```text
+Source code
+    │
+    ▼
+GitHub Actions
+    │
+    ▼
+Docker multi-stage build
+    │
+    ├── .NET SDK
+    ├── C compiler
+    ├── C++ compiler
+    └── CMake
+    │
+    ▼
+Native controller build
+    │
+    ▼
+CMake runtime installation
+    │
+    ▼
+Linux backend runtime package
+    │
+    ▼
+ASP.NET Core runtime-only image
+    │
+    ▼
+Container smoke test
+    │
+    ├── /health/live
+    ├── /health/ready
+    ├── native .so
+    └── non-root user
+    │
+    ▼
+GitHub Container Registry
+```
+
+The final runtime image does not contain the .NET SDK, C/C++ compilers or native
+build tooling.
+
+This is a deliberate multi-stage-build boundary.
+
+---
+
+## Public container image
+
+The current backend image is:
+
+```text
+ghcr.io/kris7011/gridflex-ems-backend
+```
+
+Pull the newest `main` build:
+
+```bash
+docker pull ghcr.io/kris7011/gridflex-ems-backend:latest
+```
+
+The image is publicly readable.
+
+---
+
+## Versioned image references
+
+Each publication creates a tag containing the full Git commit SHA:
+
+```text
+sha-<full-git-commit-sha>
+```
+
+The commit-SHA tag is intended for source traceability.
+
+Container tags remain mutable registry references.
+
+The immutable content identity is the image digest:
+
+```text
+sha256:<digest>
+```
+
+This distinction is important:
+
+```text
+latest
+    → convenient moving tag
+
+sha-<git-commit>
+    → source-traceable tag
+
+sha256:<digest>
+    → immutable content identity
+```
+
+A commit-SHA tag allows a source revision and deployment artifact to be
+correlated more clearly than `latest`.
+
+Conceptually:
+
+```text
+Git commit
+    │
+    ▼
+container build
+    │
+    ▼
+sha-<git-commit>
+```
+
+This is preferable to relying only on `latest` when source traceability matters.
 
 ---
 
@@ -2299,7 +2807,8 @@ Current ADRs include:
 | Native build            | CMake                           | C and C++ builds                       | Implemented |
 | Testing                 | xUnit / Catch2 / CTest / pytest | Automated verification                 | Implemented |
 | CI                      | GitHub Actions                  | Automated quality validation           | Implemented |
-| Containers              | Docker                          | Reproducible runtime environment       | Planned     |
+| Containers              | Docker                          | Reproducible Linux runtime             | Implemented |
+| Container registry      | GitHub Container Registry       | Versioned image distribution           | Implemented |
 | Cloud                   | Microsoft Azure                 | Deployment and observability           | Planned     |
 | Development             | Windows + Linux                 | Cross-platform engineering             | Active      |
 
@@ -2315,6 +2824,16 @@ repository.
 The current project runs as an educational development system and does not yet
 contain authentication.
 
+Current deployment-oriented security measures include:
+
+- A runtime-only final Docker image
+- Separation of build tooling from runtime tooling
+- A non-root application user
+- Explicit GitHub Actions permissions
+- `GITHUB_TOKEN` instead of manually stored registry credentials
+- Package publication only from `main`
+- Source-traceable commit-SHA image tags
+
 Future work may include:
 
 - Authentication
@@ -2325,6 +2844,7 @@ Future work may include:
 - Dependency scanning
 - Container scanning
 - Audit logging
+- Image signing and provenance
 
 Input validation is already applied at multiple application and native
 boundaries.
@@ -2379,41 +2899,64 @@ The current project does not include:
 
 Milestones 1 through 5 are complete.
 
-The current major architectural path is:
+The core deployment path of Milestone 6 is also implemented:
 
 ```text
-Python simulation
-        │
-        │ future integration
-        ▼
-ASP.NET Core API
-        │
-        ▼
-Application services
-        │
-        ▼
-Native controller gateway
-        │
-        ▼
+ASP.NET Core
+    │
+    ▼
+Managed/native gateway
+    │
+    ▼
 Versioned C ABI
-        │
-        ▼
+    │
+    ▼
 C++ EnergyController
-        │
-        ▼
-C hardware abstraction
+    │
+    ▼
+Linux runtime package
+    │
+    ▼
+Docker image
+    │
+    ▼
+Container validation
+    │
+    ▼
+GitHub Container Registry
 ```
 
-The next major focus is:
+The current system therefore spans:
 
 ```text
-Milestone 6
-Containers and Linux deployment
+Simulation
+    ↓
+Application API
+    ↓
+Native interoperability
+    ↓
+Control logic
+    ↓
+Hardware abstraction
+    ↓
+Linux deployment packaging
+    ↓
+Container distribution
 ```
 
-The goal is to package the already working ASP.NET Core + native C++ integration
-into a reproducible deployment unit without weakening the existing application
-and native boundaries.
+The next major development areas are expected to include:
+
+- Deployment hardening
+- Azure deployment
+- Monitoring and metrics
+- Centralized logging
+- Dependency and container scanning
+- Frontend visualization
+- Further integration between simulation and backend components
+
+The project will continue to evolve incrementally so that each new capability
+has an explicit responsibility, testable boundary and documented reason for
+existing.
 
 ---
 
