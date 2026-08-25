@@ -2,6 +2,14 @@
 
 ![GridFlex EMS - Modular Energy Management System](docs/assets/gridflex-ems-banner.jpg)
 
+[![Python Quality](https://github.com/kris7011/gridflex-ems/actions/workflows/python-quality.yml/badge.svg?branch=main)](https://github.com/kris7011/gridflex-ems/actions/workflows/python-quality.yml)
+[![C Quality](https://github.com/kris7011/gridflex-ems/actions/workflows/c-quality.yml/badge.svg?branch=main)](https://github.com/kris7011/gridflex-ems/actions/workflows/c-quality.yml)
+[![C++ Quality](https://github.com/kris7011/gridflex-ems/actions/workflows/cpp-quality.yml/badge.svg?branch=main)](https://github.com/kris7011/gridflex-ems/actions/workflows/cpp-quality.yml)
+[![Backend Quality](https://github.com/kris7011/gridflex-ems/actions/workflows/backend-quality.yml/badge.svg?branch=main)](https://github.com/kris7011/gridflex-ems/actions/workflows/backend-quality.yml)
+[![Backend Container](https://github.com/kris7011/gridflex-ems/actions/workflows/backend-container.yml/badge.svg?branch=main)](https://github.com/kris7011/gridflex-ems/actions/workflows/backend-container.yml)
+[![Release](https://img.shields.io/github/v/release/kris7011/gridflex-ems?display_name=tag&sort=semver)](https://github.com/kris7011/gridflex-ems/releases/latest)
+[![License](https://img.shields.io/github/license/kris7011/gridflex-ems)](LICENSE)
+
 GridFlex EMS is an independent portfolio and learning project that demonstrates
 the incremental development of a modular Energy Management System across
 multiple programming languages and technical layers.
