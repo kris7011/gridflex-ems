@@ -11,7 +11,7 @@ The project combines:
 - C for hardware-facing abstractions
 - Python for simulation and reproducible energy scenarios
 - CMake for native build orchestration
-- Docker for reproducible Linux runtime packaging
+- Docker for containerized Linux runtime packaging
 - GitHub Container Registry for versioned container distribution
 - GitHub Actions for automated quality and deployment validation
 - Linux and Windows for cross-platform development and testing
@@ -195,15 +195,50 @@ GridFlex EMS is designed to demonstrate practical experience with:
 - GitHub Actions
 - Docker
 - GitHub Container Registry
-- Microsoft Azure
 - Automated testing
 - Static analysis
 - Defensive programming
 - Performance measurement
-- Observability
+- Health checks and operational readiness
 - Cross-language communication
 - Technical documentation
 - Architecture Decision Records
+
+---
+
+## v1.0 scope
+
+GridFlex EMS v1.0 focuses on a complete and testable HTTP-to-native control
+path together with an independently testable Python simulation engine.
+
+Implemented in v1.0:
+
+- Python-based energy simulation and reproducible scenarios
+- C hardware abstraction with simulated sensors and actuators
+- C++ energy controller with deterministic decision logic
+- Versioned C ABI between native and managed code
+- ASP.NET Core API and application layer
+- Managed-to-native interoperability through `LibraryImport`
+- Native lifetime management through `SafeHandle`
+- Liveness and readiness health checks
+- Automated tests across Python, C, C++ and .NET
+- Linux runtime packaging
+- Docker container packaging
+- GitHub Container Registry publication
+- GitHub Actions CI and tested-artifact promotion
+- Pinned CI and container build dependencies
+- Protected `main` branch with required CI checks
+
+Explicitly outside the v1.0 scope:
+
+- Browser-based frontend dashboard
+- Microsoft Azure deployment and cloud monitoring
+- Python-to-backend runtime integration
+- Electric vehicle charging functionality
+- Control of physical electrical equipment
+
+These items may be explored separately in future development, but they are not
+required for the v1.0 architecture to be complete.
 
 ---
 
@@ -215,7 +250,6 @@ GridFlex EMS models a simplified energy installation containing:
 - Battery Energy Storage System, also known as BESS
 - Building consumption
 - Electrical grid connection
-- Electric vehicle chargers in a later milestone
 
 The system works with energy measurements and determines how the installation
 should react.
@@ -237,8 +271,8 @@ Example decisions include:
 
 ```text
 ┌─────────────────────────────────────────────┐
-│             Frontend Dashboard              │
-│               Future milestone              │
+│            HTTP Client / Consumer            │
+│             External API caller              │
 └──────────────────────┬──────────────────────┘
                        │
                        │ HTTP / JSON
@@ -296,7 +330,8 @@ Example decisions include:
 The Python simulation engine remains independently testable and currently acts
 as the simulation and reference-behavior component.
 
-Python-to-backend integration is a later architectural step.
+In v1.0, the Python simulation engine is intentionally kept separate from the
+backend runtime path.
 
 The backend deployment path currently adds another boundary around the running
 application:
@@ -1967,7 +2002,8 @@ The backend currently exposes:
 
 Liveness and readiness are also used during automated deployment validation.
 
-Logging and metrics will be expanded in later milestones.
+In v1.0, operational visibility is provided by liveness and readiness health
+checks. Structured application metrics are outside the current scope.
 
 ---
 
@@ -2211,8 +2247,9 @@ Completed:
 - [x] Container readiness validation
 - [x] Native-library container validation
 - [x] Non-root container runtime
-- [x] Reproducible local container startup
+- [x] Containerized local startup
 - [x] Automated container smoke testing
+- [x] Build-once / promote-the-tested-artifact workflow
 - [x] GitHub Container Registry publication
 - [x] `latest` container tag
 - [x] Commit-SHA container tag
@@ -2224,11 +2261,10 @@ Possible later deployment improvements include:
 - [ ] Environment-specific container configuration
 - [ ] Deployment helper scripts
 - [ ] Additional container security scanning
-- [ ] Build-once / promote-the-tested-artifact workflow
 
 ---
 
-## Milestone 7: DevOps and Azure
+## Milestone 7: DevOps foundation and future Azure deployment
 
 Current DevOps foundation:
 
@@ -2243,6 +2279,10 @@ Current DevOps foundation:
 - [x] Container smoke testing
 - [x] GitHub Container Registry publication
 - [x] Source-traceable commit-SHA image tagging
+- [x] GitHub Actions dependencies pinned to immutable commit SHAs
+- [x] Docker base images pinned to immutable content digests
+- [x] Dependabot-managed dependency updates
+- [x] Protected `main` branch with required CI checks
 - [ ] Azure deployment
 - [ ] Environment-specific deployment configuration
 - [ ] Monitoring
@@ -2253,7 +2293,7 @@ Current DevOps foundation:
 
 ---
 
-## Milestone 8: Frontend dashboard
+## Milestone 8: Frontend dashboard - Future work
 
 Planned features include:
 
@@ -2807,7 +2847,7 @@ Current ADRs include:
 | Native build            | CMake                           | C and C++ builds                       | Implemented |
 | Testing                 | xUnit / Catch2 / CTest / pytest | Automated verification                 | Implemented |
 | CI                      | GitHub Actions                  | Automated quality validation           | Implemented |
-| Containers              | Docker                          | Reproducible Linux runtime             | Implemented |
+| Containers              | Docker                          | Containerized Linux runtime            | Implemented |
 | Container registry      | GitHub Container Registry       | Versioned image distribution           | Implemented |
 | Cloud                   | Microsoft Azure                 | Deployment and observability           | Planned     |
 | Development             | Windows + Linux                 | Cross-platform engineering             | Active      |
