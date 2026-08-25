@@ -1,5 +1,7 @@
 # GridFlex EMS
 
+![GridFlex EMS - Modular Energy Management System](docs/assets/gridflex-ems-banner.jpg)
+
 GridFlex EMS is an independent portfolio and learning project that demonstrates
 the incremental development of a modular Energy Management System across
 multiple programming languages and technical layers.
