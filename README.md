@@ -524,16 +524,75 @@ The implementation includes:
 GET /api/system/status
 ```
 
-Returns basic information about the running API.
+Returns the state of the running API in one response:
 
-Example response:
+- `status` is `healthy` when the native controller is ready, and `degraded`
+  otherwise. It uses the same condition as `/health/ready`.
+- `nativeController` contains the ABI version of the loaded native library
+  and the configured controller limits.
+- `decisions` counts the decisions since the process started, by action,
+  together with rejected and failed requests.
+
+Example response, recorded after two decisions and one rejected measurement:
 
 ```json
 {
   "service": "GridFlex.Api",
   "status": "healthy",
-  "environment": "Development"
+  "environment": "Production",
+  "version": "1.0.0+fe36d91d7d29043b8eaf5bee5eb84cd4bc9c3116",
+  "startedAt": "2026-10-18T08:36:23.0527529+00:00",
+  "uptimeSeconds": 5,
+  "nativeController": {
+    "ready": true,
+    "abiVersion": 2,
+    "limits": {
+      "maxChargePowerKw": 10,
+      "maxDischargePowerKw": 8,
+      "minimumBatterySocKwh": 2,
+      "maximumBatterySocKwh": 20
+    }
+  },
+  "decisions": {
+    "decided": 2,
+    "decidedByAction": {
+      "Idle": 0,
+      "ChargeBattery": 1,
+      "DischargeBattery": 1,
+      "ImportFromGrid": 0,
+      "ExportToGrid": 0
+    },
+    "rejected": 1,
+    "failed": 0,
+    "lastDecisionAt": "2026-10-18T08:36:28.3151933+00:00"
+  }
 }
+```
+
+## Metrics and logs
+
+Every call into the controller passes through `InstrumentedControllerGateway`,
+a decorator around the native gateway. For each call it records:
+
+| Signal | Name | Details |
+|---|---|---|
+| Counter | `gridflex.control.decisions` | tags `outcome` (`decided`, `rejected`, `failed`) and `action` |
+| Histogram | `gridflex.control.decision.duration` | milliseconds spent in the controller call, tag `outcome` |
+| Log | `Decided step {StepNumber}: {Action} at {RequestedPowerKw} kW in {DurationMs} ms` | Information |
+| Log | `Rejected measurement for step {StepNumber}: {Reason}` | Warning, with the native reason |
+| Log | `Controller failed for step {StepNumber}` | Error, with the exception |
+
+The instruments belong to the `GridFlex.Api.Control` meter
+(`System.Diagnostics.Metrics`). Any compatible listener can read them, for
+example `dotnet-counters monitor --counters GridFlex.Api.Control -n GridFlex.Api`
+or an OpenTelemetry exporter. No exporter is bundled.
+
+The container image writes JSON console logs
+(`Logging__Console__FormatterName=json`), so the structured fields stay
+machine-readable:
+
+```json
+{"EventId":824493755,"LogLevel":"Information","Category":"GridFlex.Api.Application.Control.InstrumentedControllerGateway","Message":"Decided step 1: ChargeBattery at 4 kW in 0.882 ms","State":{"StepNumber":1,"Action":"ChargeBattery","RequestedPowerKw":4,"DurationMs":0.8819,"{OriginalFormat}":"Decided step {StepNumber}: {Action} at {RequestedPowerKw} kW in {DurationMs:0.000} ms"}}
 ```
 
 ---
