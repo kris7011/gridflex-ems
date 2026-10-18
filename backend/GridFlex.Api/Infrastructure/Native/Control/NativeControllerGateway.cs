@@ -29,18 +29,25 @@ internal sealed class NativeControllerGateway
 
     if (status != NativeControllerStatus.Ok)
     {
+      // Read the thread-local reason before any other native call.
+      var reason =
+        NativeControllerMethods.ReadLastErrorMessage();
+
       handle?.Dispose();
 
       if (status == NativeControllerStatus.InvalidLimits)
       {
         throw new ArgumentException(
-          "Native controller rejected the configured limits.",
+          WithReason(
+            "Native controller rejected the configured limits",
+            reason),
           nameof(limits));
       }
 
       throw new InvalidOperationException(
-        $"Native controller creation failed with status " +
-        $"'{status}'.");
+        WithReason(
+          $"Native controller creation failed with status '{status}'",
+          reason));
     }
 
     if (handle is null || handle.IsInvalid)
@@ -92,17 +99,22 @@ internal sealed class NativeControllerGateway
 
     if (status != NativeControllerStatus.Ok)
     {
+      var reason =
+        NativeControllerMethods.ReadLastErrorMessage();
+
       if (status ==
           NativeControllerStatus.InvalidMeasurement)
       {
-        throw new ArgumentException(
+        throw new MeasurementRejectedException(
+          reason ??
           "Native controller rejected the measurement.",
           nameof(measurement));
       }
 
       throw new InvalidOperationException(
-        $"Native controller decision failed with status " +
-        $"'{status}'.");
+        WithReason(
+          $"Native controller decision failed with status '{status}'",
+          reason));
     }
 
     return new ControlDecision(
@@ -114,6 +126,15 @@ internal sealed class NativeControllerGateway
   public void Dispose()
   {
     _handle.Dispose();
+  }
+
+  private static string WithReason(
+    string summary,
+    string? reason)
+  {
+    return reason is null
+      ? $"{summary}."
+      : $"{summary}: {reason}";
   }
 
   private static ControlAction MapAction(

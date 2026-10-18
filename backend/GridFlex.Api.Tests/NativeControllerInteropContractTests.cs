@@ -190,14 +190,14 @@ public sealed class NativeControllerInteropContractTests
   }
 
   [Fact]
-  public void NativeMethodMetadataMatchesAbiVersionOne()
+  public void NativeMethodMetadataMatchesAbiVersionTwo()
   {
     Assert.Equal(
       "gridflex_controller_native",
       NativeControllerMethods.LibraryName);
 
     Assert.Equal(
-      1u,
+      2u,
       NativeControllerMethods.ExpectedAbiVersion);
   }
 
