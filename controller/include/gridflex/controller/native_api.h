@@ -1,6 +1,7 @@
 #ifndef GRIDFLEX_CONTROLLER_NATIVE_API_H
 #define GRIDFLEX_CONTROLLER_NATIVE_API_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #if defined(_WIN32)
@@ -25,7 +26,13 @@ extern "C"
 {
 #endif
 
-#define GRIDFLEX_CONTROLLER_ABI_VERSION 1u
+/*
+ * Version history:
+ * 1  create, destroy, decide and the payload structures.
+ * 2  adds gridflex_controller_last_error_message. Version 1 functions and
+ *    structures are unchanged.
+ */
+#define GRIDFLEX_CONTROLLER_ABI_VERSION 2u
 
 typedef int32_t GridFlexControllerStatus;
 
@@ -97,6 +104,25 @@ gridflex_controller_decide(
     GridFlexControllerHandle *handle,
     const GridFlexControllerMeasurement *measurement,
     GridFlexControllerDecision *decision);
+
+/*
+ * Describes why the most recent gridflex_controller_create or
+ * gridflex_controller_decide call on the calling thread failed.
+ *
+ * Returns the length of the message in bytes, excluding the terminating
+ * NUL, or 0 if that call succeeded. Copies at most buffer_size - 1 bytes
+ * followed by a NUL into buffer; a longer message is truncated. Call it
+ * with buffer = NULL and buffer_size = 0 to query the length only.
+ *
+ * The message is UTF-8 text describing the violated rule (for example
+ * "Measurement interval must be greater than zero."). It never contains
+ * measurement values. The state is thread-local, so concurrent callers
+ * on different threads do not see each other's errors.
+ */
+GRIDFLEX_CONTROLLER_API size_t GRIDFLEX_CONTROLLER_CALL
+gridflex_controller_last_error_message(
+    char *buffer,
+    size_t buffer_size);
 
 #ifdef __cplusplus
 }

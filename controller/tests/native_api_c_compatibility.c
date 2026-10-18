@@ -14,12 +14,20 @@ int gridflex_controller_native_api_c_compatibility(void)
     GridFlexControllerAction action =
         GRIDFLEX_CONTROLLER_ACTION_IDLE;
 
+    char message[64] = {0};
+
+    size_t message_length =
+        gridflex_controller_last_error_message(
+            message,
+            sizeof(message));
+
     (void)limits;
     (void)measurement;
     (void)decision;
     (void)handle;
     (void)status;
     (void)action;
+    (void)message_length;
 
     return 0;
 }

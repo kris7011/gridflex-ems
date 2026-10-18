@@ -218,6 +218,9 @@ if(BUILD_TESTING)
 
     FetchContent_MakeAvailable(Catch2)
 
+    # The native API tests start a thread to check thread-local state.
+    find_package(Threads REQUIRED)
+
     add_executable(
         gridflex_controller_tests
         tests/control_command_tests.cpp
@@ -235,6 +238,7 @@ if(BUILD_TESTING)
             gridflex_controller
             gridflex_controller_native
             Catch2::Catch2WithMain
+            Threads::Threads
     )
 
     target_compile_definitions(

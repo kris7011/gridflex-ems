@@ -2,8 +2,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <thread>
 #include <type_traits>
 
 namespace
@@ -23,17 +26,64 @@ namespace
     const double net_energy_kwh,
     const double battery_state_of_charge_kwh)
 {
+    // Generation and consumption are derived from the net energy, so
+    // the measurement is internally consistent.
     return GridFlexControllerMeasurement{
         step_number,
         1.0,
         0.25,
-        5.0,
-        2.0,
+        2.0 + std::max(net_energy_kwh, 0.0),
+        2.0 + std::max(-net_energy_kwh, 0.0),
         net_energy_kwh,
         battery_state_of_charge_kwh,
         0.0,
         0.0,
         0.0};
+}
+
+[[nodiscard]] std::string read_last_error_message()
+{
+    const std::size_t length =
+        gridflex_controller_last_error_message(nullptr, 0);
+
+    std::string message(length + 1, '\0');
+
+    REQUIRE(
+        gridflex_controller_last_error_message(
+            message.data(),
+            message.size()) ==
+        length);
+
+    message.resize(length);
+
+    return message;
+}
+
+[[nodiscard]] GridFlexControllerStatus decide_once(
+    const GridFlexControllerMeasurement &measurement)
+{
+    const GridFlexControllerLimits limits =
+        create_valid_limits();
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    REQUIRE(
+        gridflex_controller_create(
+            &limits,
+            &handle) ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    GridFlexControllerDecision decision{};
+
+    const GridFlexControllerStatus status =
+        gridflex_controller_decide(
+            handle,
+            &measurement,
+            &decision);
+
+    gridflex_controller_destroy(handle);
+
+    return status;
 }
 
 } // namespace
@@ -50,7 +100,7 @@ TEST_CASE("Native API defines stable ABI scalar types")
 
     REQUIRE(
         GRIDFLEX_CONTROLLER_ABI_VERSION ==
-        1u);
+        2u);
 
     REQUIRE(
         GRIDFLEX_CONTROLLER_STATUS_OK ==
@@ -492,4 +542,146 @@ TEST_CASE("Native API reuses controller handle across decisions")
     REQUIRE(
         deficit_decision.requested_power_kw ==
         6.0);
+}
+
+TEST_CASE("Native API explains why a measurement was rejected")
+{
+    GridFlexControllerMeasurement measurement =
+        create_measurement(
+            1,
+            3.0,
+            10.0);
+
+    measurement.interval_hours = 0.0;
+
+    REQUIRE(
+        decide_once(measurement) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_MEASUREMENT);
+
+    REQUIRE(
+        read_last_error_message() ==
+        "Measurement interval must be greater than zero.");
+}
+
+TEST_CASE("Native API rejects net energy that contradicts generation and consumption")
+{
+    // 5 kWh generated and 2 kWh consumed is a 3 kWh surplus, not a
+    // 3 kWh deficit. Before this rule, the controller discharged.
+    GridFlexControllerMeasurement measurement =
+        create_measurement(
+            1,
+            3.0,
+            10.0);
+
+    measurement.net_energy_kwh = -3.0;
+
+    REQUIRE(
+        decide_once(measurement) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_MEASUREMENT);
+
+    REQUIRE(
+        read_last_error_message() ==
+        "Net energy must equal generated energy minus consumed energy.");
+}
+
+TEST_CASE("Native API explains why controller limits were rejected")
+{
+    const GridFlexControllerLimits limits{
+        0.0,
+        10.0,
+        0.0,
+        20.0};
+
+    GridFlexControllerHandle *handle = nullptr;
+
+    REQUIRE(
+        gridflex_controller_create(
+            &limits,
+            &handle) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_LIMITS);
+
+    REQUIRE(handle == nullptr);
+    REQUIRE_FALSE(read_last_error_message().empty());
+}
+
+TEST_CASE("Native API clears the last error after a successful call")
+{
+    GridFlexControllerMeasurement invalid =
+        create_measurement(
+            0,
+            3.0,
+            10.0);
+
+    REQUIRE(
+        decide_once(invalid) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_MEASUREMENT);
+
+    REQUIRE(
+        gridflex_controller_last_error_message(nullptr, 0) >
+        0);
+
+    REQUIRE(
+        decide_once(create_measurement(1, 3.0, 10.0)) ==
+        GRIDFLEX_CONTROLLER_STATUS_OK);
+
+    REQUIRE(
+        gridflex_controller_last_error_message(nullptr, 0) ==
+        0);
+}
+
+TEST_CASE("Native API truncates the last error message to the caller's buffer")
+{
+    REQUIRE(
+        decide_once(create_measurement(0, 3.0, 10.0)) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_MEASUREMENT);
+
+    const std::string full_message =
+        read_last_error_message();
+
+    char buffer[8];
+
+    REQUIRE(
+        gridflex_controller_last_error_message(
+            buffer,
+            sizeof(buffer)) ==
+        full_message.size());
+
+    REQUIRE(
+        std::string{buffer} ==
+        full_message.substr(0, sizeof(buffer) - 1));
+
+    // A zero-sized buffer is never written to.
+    char untouched = 'x';
+
+    REQUIRE(
+        gridflex_controller_last_error_message(
+            &untouched,
+            0) ==
+        full_message.size());
+
+    REQUIRE(untouched == 'x');
+}
+
+TEST_CASE("Native API keeps the last error per thread")
+{
+    REQUIRE(
+        decide_once(create_measurement(0, 3.0, 10.0)) ==
+        GRIDFLEX_CONTROLLER_STATUS_INVALID_MEASUREMENT);
+
+    std::size_t length_on_other_thread = 1;
+
+    std::thread other_thread{
+        [&length_on_other_thread]
+        {
+            length_on_other_thread =
+                gridflex_controller_last_error_message(nullptr, 0);
+        }};
+
+    other_thread.join();
+
+    REQUIRE(length_on_other_thread == 0);
+
+    REQUIRE(
+        gridflex_controller_last_error_message(nullptr, 0) >
+        0);
 }

@@ -1,4 +1,6 @@
+using System.Diagnostics.Metrics;
 using GridFlex.Api.Application.Control;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
 namespace GridFlex.Api.Infrastructure.Native.Control;
@@ -32,7 +34,10 @@ internal static class NativeControllerServiceCollectionExtensions
         "Native controller configuration is invalid.")
       .ValidateOnStart();
 
-    services.AddSingleton<IControllerGateway>(
+    services.TryAddSingleton(TimeProvider.System);
+    services.TryAddSingleton<ControlDecisionStatistics>();
+
+    services.AddSingleton(
       static serviceProvider =>
       {
         var options =
@@ -56,6 +61,22 @@ internal static class NativeControllerServiceCollectionExtensions
 
         return new NativeControllerGateway(limits);
       });
+
+    // The application sees the native gateway only through the
+    // instrumented decorator (metrics, statistics, structured logs).
+    services.AddSingleton<IControllerGateway>(
+      static serviceProvider =>
+        new InstrumentedControllerGateway(
+          serviceProvider.GetRequiredService<NativeControllerGateway>(),
+          serviceProvider.GetRequiredService<ControlDecisionStatistics>(),
+          serviceProvider.GetRequiredService<IMeterFactory>(),
+          serviceProvider.GetRequiredService<TimeProvider>(),
+          serviceProvider.GetRequiredService<
+            ILogger<InstrumentedControllerGateway>>()));
+
+    services.AddSingleton<
+      IControllerDiagnostics,
+      NativeControllerDiagnostics>();
 
     services
       .AddHealthChecks()

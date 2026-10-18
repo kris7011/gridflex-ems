@@ -545,16 +545,75 @@ The implementation includes:
 GET /api/system/status
 ```
 
-Returns basic information about the running API.
+Returns the state of the running API in one response:
 
-Example response:
+- `status` is `healthy` when the native controller is ready, and `degraded`
+  otherwise. It uses the same condition as `/health/ready`.
+- `nativeController` contains the ABI version of the loaded native library
+  and the configured controller limits.
+- `decisions` counts the decisions since the process started, by action,
+  together with rejected and failed requests.
+
+Example response, recorded after two decisions and one rejected measurement:
 
 ```json
 {
   "service": "GridFlex.Api",
   "status": "healthy",
-  "environment": "Development"
+  "environment": "Production",
+  "version": "1.0.0+fe36d91d7d29043b8eaf5bee5eb84cd4bc9c3116",
+  "startedAt": "2026-10-18T08:36:23.0527529+00:00",
+  "uptimeSeconds": 5,
+  "nativeController": {
+    "ready": true,
+    "abiVersion": 2,
+    "limits": {
+      "maxChargePowerKw": 10,
+      "maxDischargePowerKw": 8,
+      "minimumBatterySocKwh": 2,
+      "maximumBatterySocKwh": 20
+    }
+  },
+  "decisions": {
+    "decided": 2,
+    "decidedByAction": {
+      "Idle": 0,
+      "ChargeBattery": 1,
+      "DischargeBattery": 1,
+      "ImportFromGrid": 0,
+      "ExportToGrid": 0
+    },
+    "rejected": 1,
+    "failed": 0,
+    "lastDecisionAt": "2026-10-18T08:36:28.3151933+00:00"
+  }
 }
+```
+
+## Metrics and logs
+
+Every call into the controller passes through `InstrumentedControllerGateway`,
+a decorator around the native gateway. For each call it records:
+
+| Signal | Name | Details |
+|---|---|---|
+| Counter | `gridflex.control.decisions` | tags `outcome` (`decided`, `rejected`, `failed`) and `action` |
+| Histogram | `gridflex.control.decision.duration` | milliseconds spent in the controller call, tag `outcome` |
+| Log | `Decided step {StepNumber}: {Action} at {RequestedPowerKw} kW in {DurationMs} ms` | Information |
+| Log | `Rejected measurement for step {StepNumber}: {Reason}` | Warning, with the native reason |
+| Log | `Controller failed for step {StepNumber}` | Error, with the exception |
+
+The instruments belong to the `GridFlex.Api.Control` meter
+(`System.Diagnostics.Metrics`). Any compatible listener can read them, for
+example `dotnet-counters monitor --counters GridFlex.Api.Control -n GridFlex.Api`
+or an OpenTelemetry exporter. No exporter is bundled.
+
+The container image writes JSON console logs
+(`Logging__Console__FormatterName=json`), so the structured fields stay
+machine-readable:
+
+```json
+{"EventId":824493755,"LogLevel":"Information","Category":"GridFlex.Api.Application.Control.InstrumentedControllerGateway","Message":"Decided step 1: ChargeBattery at 4 kW in 0.882 ms","State":{"StepNumber":1,"Action":"ChargeBattery","RequestedPowerKw":4,"DurationMs":0.8819,"{OriginalFormat}":"Decided step {StepNumber}: {Action} at {RequestedPowerKw} kW in {DurationMs:0.000} ms"}}
 ```
 
 ---
@@ -680,13 +739,35 @@ ChargeBattery
 10.0 kW
 ```
 
-Invalid energy measurements return:
+### Error responses
 
-```text
-400 Bad Request
+Every error is an RFC 9457 problem document (`application/problem+json`)
+with a `traceId` that also appears in the server logs.
+
+| Situation | Status | `title` |
+|---|---|---|
+| Malformed JSON | `400` | `Invalid request body.` |
+| A property is missing | `400` | `Invalid request body.` |
+| An unknown (for example misspelled) property | `400` | `Invalid request body.` |
+| The controller rejects the measurement | `400` | `Invalid energy measurement.` |
+| Unexpected failure, for example in the native controller | `500` | generic, without internal details |
+
+Every request property is required, and unknown properties are rejected. A
+missing or misspelled property is therefore never bound as `0`. Example:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "Invalid request body.",
+  "status": 400,
+  "detail": "The JSON property 'batterySoc' could not be mapped to any .NET member contained in type 'GridFlex.Api.Contracts.ControlDecisionRequest'.",
+  "traceId": "00-3b45bf5560f4895012b9095385c2ff89-26a3ac5a362317c2-00"
+}
 ```
 
-using `ProblemDetails`.
+Before this check existed, the same request was answered with `200 OK` and an `Idle`
+decision, because the state of charge was silently bound as 0 kWh instead of
+the intended 15 kWh (which yields `DischargeBattery`).
 
 ---
 
@@ -813,10 +894,34 @@ Instead it uses:
 - Explicit structures
 - Numeric status codes
 - Opaque handles
+- A thread-local "last error" message for failed calls (ABI version 2)
 
 This decision is documented in:
 
 [ADR 0002](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
+
+### Error details across the ABI
+
+C++ exceptions never cross the boundary, but their reason does. The native
+adapter stores the message of a failed `create` or `decide` call in
+thread-local storage, and `gridflex_controller_last_error_message` copies it
+into a caller-provided buffer. The managed gateway reads it right after the
+failed call and passes it on, so the HTTP response explains the rejection:
+
+```json
+{
+  "title": "Invalid energy measurement.",
+  "status": 400,
+  "detail": "Net energy must equal generated energy minus consumed energy."
+}
+```
+
+That example is a measurement that reports a 3 kWh surplus (5 kWh generated,
+2 kWh consumed) as a 3 kWh deficit. The controller used to discharge the
+battery for it. It now rejects inconsistent measurements, with the same rule
+and tolerance as the Python simulation model.
+
+Details and alternatives: [ADR 0003](docs/decisions/0003-report-native-error-details-through-the-c-abi.md)
 
 ---
 
@@ -2862,6 +2967,7 @@ Current ADRs include:
 
 - [ADR 0001: Use multiple languages](docs/decisions/0001-use-multiple-languages.md)
 - [ADR 0002: Use a C ABI for .NET to C++ controller interoperability](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
+- [ADR 0003: Report native error details through the C ABI](docs/decisions/0003-report-native-error-details-through-the-c-abi.md)
 
 ---
 

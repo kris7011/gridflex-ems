@@ -3,7 +3,6 @@ using GridFlex.Api.Contracts;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace GridFlex.Api.Endpoints;
@@ -29,7 +28,7 @@ public static class ControlDecisionEndpoints
 
   private static Results<
     Ok<ControlDecisionResponse>,
-    BadRequest<ProblemDetails>> Decide(
+    ProblemHttpResult> Decide(
     ControlDecisionRequest request,
     IControlDecisionService decisionService)
   {
@@ -71,16 +70,17 @@ public static class ControlDecisionEndpoints
     }
     catch (ArgumentException exception)
     {
-      return TypedResults.BadRequest(
-        new ProblemDetails
-        {
-          Status =
-            StatusCodes.Status400BadRequest,
-          Title =
-            "Invalid energy measurement.",
-          Detail =
-            exception.Message
-        });
+      // Written through the problem details service, like every other
+      // error response, so it carries the trace identifier.
+      return TypedResults.Problem(
+        statusCode:
+          StatusCodes.Status400BadRequest,
+        title:
+          "Invalid energy measurement.",
+        detail:
+          exception is MeasurementRejectedException rejection
+            ? rejection.Reason
+            : exception.Message);
     }
   }
 

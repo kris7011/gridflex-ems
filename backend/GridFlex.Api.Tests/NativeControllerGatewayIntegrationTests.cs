@@ -103,6 +103,12 @@ public sealed class NativeControllerGatewayIntegrationTests
     Assert.Equal(
       "limits",
       exception.ParamName);
+
+    // The native reason crosses the C ABI (version 2).
+    Assert.StartsWith(
+      "Native controller rejected the configured limits: ",
+      exception.Message,
+      StringComparison.Ordinal);
   }
 
   [Fact]
@@ -119,12 +125,64 @@ public sealed class NativeControllerGatewayIntegrationTests
         netEnergyKwh: 3.0);
 
     var exception =
-      Assert.Throws<ArgumentException>(
+      Assert.Throws<MeasurementRejectedException>(
         () => gateway.Decide(measurement));
 
     Assert.Equal(
       "measurement",
       exception.ParamName);
+
+    Assert.Equal(
+      "Measurement step number must be greater than zero.",
+      exception.Reason);
+  }
+
+  [Fact]
+  public void DecideRejectsNetEnergyThatContradictsGenerationAndConsumption()
+  {
+    using var gateway =
+      new NativeControllerGateway(CreateValidLimits());
+
+    // A 3 kWh surplus reported as a 3 kWh deficit.
+    var measurement =
+      CreateMeasurement(
+        stepNumber: 1,
+        generatedEnergyKwh: 5.0,
+        consumedEnergyKwh: 2.0,
+        netEnergyKwh: -3.0);
+
+    var exception =
+      Assert.Throws<MeasurementRejectedException>(
+        () => gateway.Decide(measurement));
+
+    Assert.Equal(
+      "Net energy must equal generated energy minus consumed energy.",
+      exception.Reason);
+  }
+
+  [Fact]
+  public void DecideClearsTheNativeReasonAfterASuccessfulCall()
+  {
+    using var gateway =
+      new NativeControllerGateway(CreateValidLimits());
+
+    Assert.Throws<MeasurementRejectedException>(
+      () => gateway.Decide(
+        CreateMeasurement(
+          stepNumber: 0,
+          generatedEnergyKwh: 5.0,
+          consumedEnergyKwh: 2.0,
+          netEnergyKwh: 3.0)));
+
+    gateway.Decide(
+      CreateMeasurement(
+        stepNumber: 1,
+        generatedEnergyKwh: 5.0,
+        consumedEnergyKwh: 2.0,
+        netEnergyKwh: 3.0));
+
+    Assert.Null(
+      NativeControllerMethods.ReadLastErrorMessage());
   }
 
   [Fact]
