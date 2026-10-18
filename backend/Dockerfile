@@ -42,6 +42,10 @@ COPY --from=build /src/backend/dist/linux-x64/lib/ ./lib/
 ENV ASPNETCORE_HTTP_PORTS=8080
 ENV LD_LIBRARY_PATH=/app/lib
 
+# One JSON object per log line, with the structured fields of every
+# message (for example StepNumber, Action, RequestedPowerKw, DurationMs).
+ENV Logging__Console__FormatterName=json
+
 EXPOSE 8080
 
 USER app

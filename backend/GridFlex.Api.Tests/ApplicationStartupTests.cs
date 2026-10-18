@@ -40,12 +40,20 @@ public sealed class ApplicationStartupTests
       factory.Services
         .GetRequiredService<IControllerGateway>();
 
-    Assert.IsType<NativeControllerGateway>(
+    // The application uses the native gateway through the
+    // instrumentation decorator; both are singletons.
+    Assert.IsType<InstrumentedControllerGateway>(
       firstGateway);
 
     Assert.Same(
       firstGateway,
       secondGateway);
+
+    Assert.Same(
+      factory.Services
+        .GetRequiredService<NativeControllerGateway>(),
+      factory.Services
+        .GetRequiredService<NativeControllerGateway>());
   }
 
   [Fact]
