@@ -5,8 +5,12 @@
 #include "gridflex/controller/energy_controller.hpp"
 #include "gridflex/controller/energy_measurement.hpp"
 
+#include <algorithm>
+#include <cstring>
+#include <exception>
 #include <memory>
 #include <stdexcept>
+#include <string>
 
 using gridflex::controller::ControlAction;
 using gridflex::controller::ControlCommand;
@@ -27,6 +31,30 @@ struct GridFlexControllerHandle final
 
 namespace
 {
+
+// Reason for the most recent failed create or decide call on this thread.
+thread_local std::string last_error_message;
+
+void clear_last_error() noexcept
+{
+    last_error_message.clear();
+}
+
+void set_last_error(const char *message) noexcept
+{
+    try
+    {
+        last_error_message = message;
+    }
+    catch (...)
+    {
+        // Out of memory: report the failure without a reason.
+        last_error_message.clear();
+    }
+}
+
+constexpr const char *internal_error_message =
+    "The native controller failed unexpectedly.";
 
 [[nodiscard]] bool try_map_control_action(
     const ControlAction action,
@@ -79,8 +107,11 @@ gridflex_controller_create(
     const GridFlexControllerLimits *limits,
     GridFlexControllerHandle **handle)
 {
+    clear_last_error();
+
     if (handle == nullptr)
     {
+        set_last_error("The handle output pointer must not be null.");
         return GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT;
     }
 
@@ -88,6 +119,7 @@ gridflex_controller_create(
 
     if (limits == nullptr)
     {
+        set_last_error("The limits pointer must not be null.");
         return GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT;
     }
 
@@ -111,15 +143,18 @@ gridflex_controller_create(
         }
         catch (...)
         {
+            set_last_error(internal_error_message);
             return GRIDFLEX_CONTROLLER_STATUS_INTERNAL_ERROR;
         }
     }
-    catch (const std::invalid_argument &)
+    catch (const std::invalid_argument &exception)
     {
+        set_last_error(exception.what());
         return GRIDFLEX_CONTROLLER_STATUS_INVALID_LIMITS;
     }
     catch (...)
     {
+        set_last_error(internal_error_message);
         return GRIDFLEX_CONTROLLER_STATUS_INTERNAL_ERROR;
     }
 }
@@ -137,11 +172,16 @@ gridflex_controller_decide(
     const GridFlexControllerMeasurement *measurement,
     GridFlexControllerDecision *decision)
 {
+    clear_last_error();
+
     if (
         handle == nullptr ||
         measurement == nullptr ||
         decision == nullptr)
     {
+        set_last_error(
+            "The handle, measurement and decision pointers must not "
+            "be null.");
         return GRIDFLEX_CONTROLLER_STATUS_INVALID_ARGUMENT;
     }
 
@@ -172,6 +212,7 @@ gridflex_controller_decide(
                     command.action(),
                     native_action))
             {
+                set_last_error("The controller produced an unknown action.");
                 return GRIDFLEX_CONTROLLER_STATUS_INTERNAL_ERROR;
             }
 
@@ -186,16 +227,39 @@ gridflex_controller_decide(
         }
         catch (...)
         {
+            // A valid measurement that the controller cannot decide on
+            // is a defect in the controller, not in the input.
+            set_last_error(internal_error_message);
             return GRIDFLEX_CONTROLLER_STATUS_INTERNAL_ERROR;
         }
     }
-    catch (const std::invalid_argument &)
+    catch (const std::invalid_argument &exception)
     {
+        set_last_error(exception.what());
         return GRIDFLEX_CONTROLLER_STATUS_INVALID_MEASUREMENT;
     }
     catch (...)
     {
+        set_last_error(internal_error_message);
         return GRIDFLEX_CONTROLLER_STATUS_INTERNAL_ERROR;
     }
+}
+
+GRIDFLEX_CONTROLLER_API size_t GRIDFLEX_CONTROLLER_CALL
+gridflex_controller_last_error_message(
+    char *buffer,
+    size_t buffer_size)
+{
+    const size_t length = last_error_message.size();
+
+    if (buffer != nullptr && buffer_size > 0)
+    {
+        const size_t copied = std::min(length, buffer_size - 1);
+
+        std::memcpy(buffer, last_error_message.data(), copied);
+        buffer[copied] = '\0';
+    }
+
+    return length;
 }
 }

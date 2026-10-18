@@ -233,3 +233,47 @@ def test_measurement_rejects_simultaneous_grid_import_and_export() -> None:
             grid_import_energy_kwh=10.0,
             grid_export_energy_kwh=5.0,
         )
+
+
+@pytest.mark.parametrize(
+    "net_energy_kwh",
+    [
+        -10.0,
+        10.01,
+        0.0,
+    ],
+)
+def test_measurement_rejects_net_energy_that_contradicts_generation_and_consumption(
+    net_energy_kwh: float,
+) -> None:
+    with pytest.raises(
+        ValueError,
+        match="Net energy must equal generated energy minus consumed energy",
+    ):
+        create_measurement(
+            generated_energy_kwh=50.0,
+            consumed_energy_kwh=40.0,
+            net_energy_kwh=net_energy_kwh,
+        )
+
+
+def test_measurement_tolerates_floating_point_rounding_in_net_energy() -> None:
+    # 5.1 - 2.3 is 2.7999999999999998 in binary floating point.
+    measurement = create_measurement(
+        generated_energy_kwh=5.1,
+        consumed_energy_kwh=2.3,
+        net_energy_kwh=2.8,
+    )
+
+    assert measurement.net_energy_kwh == 2.8
+
+
+def test_measurement_accepts_a_balance_snapped_to_zero() -> None:
+    # The energy balance calculator snaps |net| <= 1e-9 kWh to zero.
+    measurement = create_measurement(
+        generated_energy_kwh=40.0 + 5e-10,
+        consumed_energy_kwh=40.0,
+        net_energy_kwh=0.0,
+    )
+
+    assert measurement.net_energy_kwh == 0.0

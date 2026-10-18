@@ -1,5 +1,6 @@
 #include "gridflex/controller/energy_measurement.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <string>
@@ -7,6 +8,11 @@
 
 namespace
 {
+    // Net energy must equal generated minus consumed energy. The
+    // tolerance absorbs floating-point rounding by the caller (and the
+    // simulation's snapping of near-zero balances to exactly zero).
+    constexpr double net_energy_absolute_tolerance_kwh = 1.0e-6;
+    constexpr double net_energy_relative_tolerance = 1.0e-9;
 
     void validate_positive_finite(
         const double value,
@@ -120,6 +126,23 @@ namespace gridflex::controller
             throw std::invalid_argument(
                 "A measurement cannot contain both grid import "
                 "and grid export energy.");
+        }
+
+        const double expected_net_energy_kwh =
+            generated_energy_kwh_ - consumed_energy_kwh_;
+
+        const double net_energy_tolerance_kwh =
+            net_energy_absolute_tolerance_kwh +
+            net_energy_relative_tolerance *
+                std::max(generated_energy_kwh_, consumed_energy_kwh_);
+
+        if (
+            std::abs(net_energy_kwh_ - expected_net_energy_kwh) >
+            net_energy_tolerance_kwh)
+        {
+            throw std::invalid_argument(
+                "Net energy must equal generated energy minus "
+                "consumed energy.");
         }
     }
 

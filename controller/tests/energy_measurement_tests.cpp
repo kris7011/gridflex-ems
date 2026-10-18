@@ -168,3 +168,68 @@ TEST_CASE("Energy measurement rejects simultaneous grid import and export")
                 0.0}),
         std::invalid_argument);
 }
+TEST_CASE("Energy measurement rejects net energy that contradicts generation and consumption")
+{
+    REQUIRE_THROWS_AS(
+        (
+            EnergyMeasurement{
+                1,
+                1.0,
+                1.0,
+                5.0,
+                2.0,
+                -3.0,
+                10.0,
+                0.0,
+                0.0,
+                0.0}),
+        std::invalid_argument);
+
+    REQUIRE_THROWS_AS(
+        (
+            EnergyMeasurement{
+                1,
+                1.0,
+                1.0,
+                5.0,
+                2.0,
+                3.01,
+                10.0,
+                0.0,
+                0.0,
+                0.0}),
+        std::invalid_argument);
+}
+
+TEST_CASE("Energy measurement tolerates floating-point rounding in net energy")
+{
+    // 5.1 - 2.3 is 2.7999999999999998 in binary floating point.
+    const EnergyMeasurement rounded{
+        1,
+        1.0,
+        1.0,
+        5.1,
+        2.3,
+        2.8,
+        10.0,
+        0.0,
+        0.0,
+        0.0};
+
+    REQUIRE(rounded.net_energy_kwh() == 2.8);
+
+    // The simulation snaps a balance within 1e-9 kWh to exactly zero.
+    const EnergyMeasurement snapped{
+        1,
+        1.0,
+        1.0,
+        2.0 + 5.0e-10,
+        2.0,
+        0.0,
+        10.0,
+        0.0,
+        0.0,
+        0.0};
+
+    REQUIRE(snapped.net_energy_kwh() == 0.0);
+}

@@ -78,7 +78,9 @@ public static class ControlDecisionEndpoints
         title:
           "Invalid energy measurement.",
         detail:
-          exception.Message);
+          exception is MeasurementRejectedException rejection
+            ? rejection.Reason
+            : exception.Message);
     }
   }
 

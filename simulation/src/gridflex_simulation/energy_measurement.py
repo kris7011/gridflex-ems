@@ -6,6 +6,9 @@ from gridflex_simulation.energy_management import (
 )
 from gridflex_simulation.grid import GridTransferDirection
 
+NET_ENERGY_ABSOLUTE_TOLERANCE_KWH = 1e-6
+NET_ENERGY_RELATIVE_TOLERANCE = 1e-9
+
 
 @dataclass(frozen=True)
 class EnergyMeasurement:
@@ -83,6 +86,19 @@ class EnergyMeasurement:
                 "A measurement cannot contain both grid import "
                 "and grid export energy."
             )
+
+        # Same rule and tolerance as the C++ EnergyMeasurement, so both
+        # domain models accept exactly the same measurements.
+        expected_net_energy_kwh = self.generated_energy_kwh - self.consumed_energy_kwh
+
+        net_energy_tolerance_kwh = (
+            NET_ENERGY_ABSOLUTE_TOLERANCE_KWH
+            + NET_ENERGY_RELATIVE_TOLERANCE
+            * max(self.generated_energy_kwh, self.consumed_energy_kwh)
+        )
+
+        if abs(self.net_energy_kwh - expected_net_energy_kwh) > net_energy_tolerance_kwh:
+            raise ValueError("Net energy must equal generated energy minus consumed energy.")
 
     @property
     def grid_net_energy_kwh(self) -> float:

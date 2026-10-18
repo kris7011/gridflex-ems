@@ -814,10 +814,34 @@ Instead it uses:
 - Explicit structures
 - Numeric status codes
 - Opaque handles
+- A thread-local "last error" message for failed calls (ABI version 2)
 
 This decision is documented in:
 
 [ADR 0002](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
+
+### Error details across the ABI
+
+C++ exceptions never cross the boundary, but their reason does. The native
+adapter stores the message of a failed `create` or `decide` call in
+thread-local storage, and `gridflex_controller_last_error_message` copies it
+into a caller-provided buffer. The managed gateway reads it right after the
+failed call and passes it on, so the HTTP response explains the rejection:
+
+```json
+{
+  "title": "Invalid energy measurement.",
+  "status": 400,
+  "detail": "Net energy must equal generated energy minus consumed energy."
+}
+```
+
+That example is a measurement that reports a 3 kWh surplus (5 kWh generated,
+2 kWh consumed) as a 3 kWh deficit. The controller used to discharge the
+battery for it. It now rejects inconsistent measurements, with the same rule
+and tolerance as the Python simulation model.
+
+Details and alternatives: [ADR 0003](docs/decisions/0003-report-native-error-details-through-the-c-abi.md)
 
 ---
 
@@ -2863,6 +2887,7 @@ Current ADRs include:
 
 - [ADR 0001: Use multiple languages](docs/decisions/0001-use-multiple-languages.md)
 - [ADR 0002: Use a C ABI for .NET to C++ controller interoperability](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
+- [ADR 0003: Report native error details through the C ABI](docs/decisions/0003-report-native-error-details-through-the-c-abi.md)
 
 ---
 
