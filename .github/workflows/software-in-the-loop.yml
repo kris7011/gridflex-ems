@@ -51,6 +51,15 @@ jobs:
                   --wait-seconds 60
                   --report-dir sil-report
 
+            # INTEGRATION BRANCH ONLY (not part of any PR).
+            - name: "Integration: report matches results, status and statistics"
+              run: |
+                  python -I scripts-integration-verify-report.py sil-report http://127.0.0.1:5080
+                  curl --fail --silent http://127.0.0.1:5080/health/ready
+                  echo
+                  curl --fail --silent http://127.0.0.1:5080/api/system/status
+                  echo
+
             - name: Upload report
               if: always()
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
