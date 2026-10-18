@@ -1,0 +1,68 @@
+name: Software in the Loop
+
+# Runs the Python simulation scenarios against the real backend container:
+# every interval goes through HTTP, ASP.NET Core, the C ABI and the C++
+# controller, and the decision is applied to the simulated battery and grid.
+# The JSON results and the HTML report are uploaded as an artifact.
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+permissions:
+    contents: read
+
+jobs:
+    sil:
+        name: Run scenarios against the backend container
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Set up Python
+              uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+              with:
+                  python-version: "3.12"
+
+            - name: Install simulation package
+              run: python -m pip install -e simulation
+
+            - name: Build backend container image
+              run: docker build --file backend/Dockerfile --tag gridflex-api:sil .
+
+            - name: Start backend container
+              run: >-
+                  docker run
+                  --detach
+                  --name gridflex-api-sil
+                  --publish 127.0.0.1:5080:8080
+                  gridflex-api:sil
+
+            - name: Run all scenarios with the C++ controller in the loop
+              run: >-
+                  gridflex-sil
+                  --api-url http://127.0.0.1:5080
+                  --wait-seconds 60
+                  --report-dir sil-report
+
+            - name: Upload report
+              if: always()
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+              with:
+                  name: software-in-the-loop-report
+                  path: sil-report
+                  if-no-files-found: ignore
+
+            - name: Show backend logs
+              if: always()
+              run: docker logs gridflex-api-sil || true
+
+            - name: Remove backend container
+              if: always()
+              run: docker rm --force gridflex-api-sil || true
