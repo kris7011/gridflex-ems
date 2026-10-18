@@ -243,7 +243,8 @@ Explicitly outside the v1.0 scope:
 
 - Browser-based frontend dashboard
 - Microsoft Azure deployment and cloud monitoring
-- Python-to-backend runtime integration
+- Python-to-backend runtime integration (added after v1.0 as a
+  [software-in-the-loop runner](docs/software-in-the-loop.md))
 - Electric vehicle charging functionality
 - Control of physical electrical equipment
 
@@ -343,6 +344,10 @@ as the simulation and reference-behavior component.
 In v1.0, the Python simulation engine is intentionally kept separate from the
 backend runtime path.
 
+The simulation is not part of the backend runtime. It runs as a separate
+client: the [software-in-the-loop runner](docs/software-in-the-loop.md) sends
+the simulated measurements to the API and lets the C++ controller decide.
+
 The backend deployment path currently adds another boundary around the running
 application:
 
@@ -421,6 +426,22 @@ The managed/native integration decision is documented in:
 [ADR 0002: Use a C ABI for .NET to C++ controller interoperability](docs/decisions/0002-use-c-abi-for-dotnet-cpp-interop.md)
 
 ---
+
+## Software in the loop
+
+`gridflex-sil` runs 24-hour scenarios (sunny day, cloudy day, evening peak,
+grid outage) in which the Python plant model asks the **real C++ controller**,
+through the HTTP API and the C ABI, what to do in every interval. It applies
+the decision to the simulated battery and grid, and compares the result with
+the Python battery-first reference. It writes JSON results and a self-contained
+HTML report. CI runs all scenarios against the backend container and uploads
+the report as an artifact. See
+[docs/software-in-the-loop.md](docs/software-in-the-loop.md).
+
+```bash
+cd simulation && python -m pip install -e .
+gridflex-sil --api-url http://localhost:5080 --report-dir ../sil-report
+```
 
 ## Python simulation engine
 
