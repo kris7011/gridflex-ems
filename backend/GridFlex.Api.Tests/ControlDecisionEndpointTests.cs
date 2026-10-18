@@ -81,6 +81,45 @@ public sealed class ControlDecisionEndpointTests
     Assert.Equal(
       "Invalid energy measurement.",
       problem.Title);
+
+    // The reason comes from the C++ controller through the C ABI.
+    Assert.Equal(
+      "Measurement step number must be greater than zero.",
+      problem.Detail);
+  }
+
+  [Fact]
+  public async Task PostDecisionRejectsNetEnergyThatContradictsGenerationAndConsumption()
+  {
+    using var factory = CreateFactory();
+    using var client = CreateClient(factory);
+
+    // 5 kWh generated and 2 kWh consumed, reported as a 3 kWh deficit.
+    // Before the consistency rule, this was answered with a discharge.
+    var request =
+      CreateValidRequest() with
+      {
+        NetEnergyKwh = -3.0
+      };
+
+    using var response =
+      await client.PostAsJsonAsync(
+        "/api/control/decision",
+        request);
+
+    Assert.Equal(
+      HttpStatusCode.BadRequest,
+      response.StatusCode);
+
+    var problem =
+      await response.Content
+        .ReadFromJsonAsync<ProblemDetails>();
+
+    Assert.NotNull(problem);
+
+    Assert.Equal(
+      "Net energy must equal generated energy minus consumed energy.",
+      problem.Detail);
   }
 
   private static ControlDecisionRequest
