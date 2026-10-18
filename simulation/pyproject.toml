@@ -19,6 +19,7 @@ dev = [
 
 [project.scripts]
 gridflex-simulation = "gridflex_simulation.main:main"
+gridflex-sil = "gridflex_simulation.controller_in_the_loop:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
