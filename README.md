@@ -659,13 +659,35 @@ ChargeBattery
 10.0 kW
 ```
 
-Invalid energy measurements return:
+### Error responses
 
-```text
-400 Bad Request
+Every error is an RFC 9457 problem document (`application/problem+json`)
+with a `traceId` that also appears in the server logs.
+
+| Situation | Status | `title` |
+|---|---|---|
+| Malformed JSON | `400` | `Invalid request body.` |
+| A property is missing | `400` | `Invalid request body.` |
+| An unknown (for example misspelled) property | `400` | `Invalid request body.` |
+| The controller rejects the measurement | `400` | `Invalid energy measurement.` |
+| Unexpected failure, for example in the native controller | `500` | generic, without internal details |
+
+Every request property is required, and unknown properties are rejected. A
+missing or misspelled property is therefore never bound as `0`. Example:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "Invalid request body.",
+  "status": 400,
+  "detail": "The JSON property 'batterySoc' could not be mapped to any .NET member contained in type 'GridFlex.Api.Contracts.ControlDecisionRequest'.",
+  "traceId": "00-3b45bf5560f4895012b9095385c2ff89-26a3ac5a362317c2-00"
+}
 ```
 
-using `ProblemDetails`.
+Before this check existed, the same request was answered with `200 OK` and an `Idle`
+decision, because the state of charge was silently bound as 0 kWh instead of
+the intended 15 kWh (which yields `DischargeBattery`).
 
 ---
 
