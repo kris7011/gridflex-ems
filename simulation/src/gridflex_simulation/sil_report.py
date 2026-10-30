@@ -45,7 +45,7 @@ def comparison_to_dict(comparison: ScenarioComparison) -> dict[str, Any]:
     return {
         "scenario": comparison.scenario.name,
         "controller": {
-            "totals": _totals(controller),
+            "totals": loop_totals(controller),
             "steps": [
                 {
                     "stepNumber": step.step_number,
@@ -84,7 +84,7 @@ def comparison_to_dict(comparison: ScenarioComparison) -> dict[str, Any]:
     }
 
 
-def _totals(result: LoopResult) -> dict[str, float]:
+def loop_totals(result: LoopResult) -> dict[str, float]:
     return {
         "generatedEnergyKwh": result.total_generated_energy_kwh,
         "consumedEnergyKwh": result.total_consumed_energy_kwh,

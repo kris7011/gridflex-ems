@@ -51,6 +51,38 @@ jobs:
                   --wait-seconds 60
                   --report-dir sil-report
 
+            - name: Run every scenario through the dashboard
+              run: |
+                  gridflex-dashboard --api-url http://127.0.0.1:5080 --port 8050 &
+                  python - <<'PY'
+                  import json, time, urllib.request
+
+                  base = "http://127.0.0.1:8050"
+                  for attempt in range(30):
+                      try:
+                          urllib.request.urlopen(base + "/", timeout=2).read()
+                          break
+                      except OSError:
+                          time.sleep(1)
+
+                  status = json.load(urllib.request.urlopen(base + "/api/controller"))
+                  assert status["reachable"], status
+                  scenarios = json.load(urllib.request.urlopen(base + "/api/scenarios"))
+
+                  for scenario in scenarios:
+                      request = urllib.request.Request(
+                          base + "/api/runs",
+                          data=json.dumps({"scenario": scenario["name"]}).encode(),
+                          headers={"Content-Type": "application/json"},
+                          method="POST",
+                      )
+                      run = json.load(urllib.request.urlopen(request, timeout=60))
+                      codes = {step["explanation"]["code"] for step in run["controller"]["steps"]}
+                      assert len(run["controller"]["steps"]) == scenario["intervals"], scenario
+                      assert not codes & {"unexplained", "limits-unknown"}, (scenario, codes)
+                      print(scenario["name"], "ok:", sorted(codes))
+                  PY
+
             - name: Upload report
               if: always()
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

@@ -241,7 +241,8 @@ Implemented in v1.0:
 
 Explicitly outside the v1.0 scope:
 
-- Browser-based frontend dashboard
+- Browser-based frontend dashboard (added after v1.0 as an
+  [interactive energy dashboard](docs/dashboard.md) for simulated runs)
 - Microsoft Azure deployment and cloud monitoring
 - Python-to-backend runtime integration (added after v1.0 as a
   [software-in-the-loop runner](docs/software-in-the-loop.md))
@@ -441,6 +442,25 @@ the report as an artifact. See
 ```bash
 cd simulation && python -m pip install -e .
 gridflex-sil --api-url http://localhost:5080 --report-dir ../sil-report
+```
+
+## Interactive energy dashboard
+
+`gridflex-dashboard` serves a local web page on top of the same
+software-in-the-loop path: choose a scenario, run it with the real C++
+controller deciding every interval, and play the day back. It shows energy
+flows, the battery state of charge, the controller's operating window, the
+exact request and response of every decision, which limit determined it, and
+the Python reference side by side, with an explanation of why the two follow
+different operating limits. See [docs/dashboard.md](docs/dashboard.md).
+
+![GridFlex energy dashboard](docs/assets/dashboard-overview.png)
+
+```bash
+# with the API running on port 5080 (Docker image or local build)
+cd simulation && python -m pip install -e .
+gridflex-dashboard --api-url http://localhost:5080
+# open http://127.0.0.1:8050
 ```
 
 ## Python simulation engine
@@ -1634,8 +1654,8 @@ Python testing includes:
 Current Python baseline:
 
 ```text
-127 tests passed
-100% coverage of tested domain modules
+239 tests passed
+98% line coverage of the package (gridflex_simulation)
 Ruff passed
 mypy passed
 ```
@@ -1869,7 +1889,7 @@ the repository checkout.
 
 ```text
 Python
-127 tests
+239 tests (including the dashboard)
 Ruff passed
 mypy passed
 
@@ -1881,10 +1901,10 @@ C
 5 native CTest targets
 
 Integrated C/C++
-52 CTest tests
+74 CTest tests (controller build with testing enabled)
 
 .NET backend
-29 tests
+45 tests
 
 GitHub Actions
 Python Quality     passed
@@ -1892,6 +1912,7 @@ C Quality          passed
 C++ Quality        passed
 Backend Quality    passed
 Backend Container  passed
+Software in the Loop (incl. dashboard smoke test) passed
 
 Container deployment
 Linux runtime package      passed
@@ -2429,19 +2450,21 @@ Current DevOps foundation:
 
 ---
 
-## Milestone 8: Frontend dashboard - Future work
+## Milestone 8: Frontend dashboard - Simulation dashboard complete
 
-Planned features include:
+The [interactive energy dashboard](docs/dashboard.md) visualises simulated
+software-in-the-loop runs. It does not monitor a live installation.
 
-- [ ] System overview
-- [ ] Battery status
-- [ ] Solar production
-- [ ] Building consumption
-- [ ] Grid import and export
-- [ ] Controller decisions
-- [ ] System health
+- [x] System overview (API health, ABI version, controller limits)
+- [x] Battery status (state of charge and operating window)
+- [x] Solar production
+- [x] Building consumption
+- [x] Grid import and export
+- [x] Controller decisions (request, response and the limit that applied)
+- [x] System health (from `/api/system/status`)
+- [x] Comparison with the Python reference strategy
 - [ ] Alerts
-- [ ] Controller history
+- [ ] Persisted controller history across runs
 
 ---
 
@@ -2957,6 +2980,12 @@ Python architecture:
 
 [Python Simulation Architecture](docs/simulation-architecture.md)
 
+Simulation and backend together:
+
+- [Software in the loop](docs/software-in-the-loop.md)
+- [Interactive energy dashboard](docs/dashboard.md)
+- [Project walkthrough](docs/PROJECT_WALKTHROUGH.md)
+
 Architecture decisions:
 
 ```text
@@ -3128,8 +3157,7 @@ The next major development areas are expected to include:
 - Monitoring and metrics
 - Centralized logging
 - Dependency and container scanning
-- Frontend visualization
-- Further integration between simulation and backend components
+- Live monitoring beyond the simulation dashboard (alerts, persisted history)
 
 The project will continue to evolve incrementally so that each new capability
 has an explicit responsibility, testable boundary and documented reason for

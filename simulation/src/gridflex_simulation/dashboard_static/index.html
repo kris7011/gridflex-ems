@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridFlex Energy Dashboard</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/static/dashboard.css">
+<script type="module" src="/static/dashboard.js"></script>
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>GridFlex energy dashboard</h1>
+    <p class="muted">Python plant model → ASP.NET Core API → C ABI → C++ controller. Simulated equipment only.</p>
+  </div>
+  <div id="controller-status" class="status" role="status" aria-live="polite">Checking the GridFlex API…</div>
+</header>
+
+<main>
+  <section class="panel" aria-labelledby="scenario-heading">
+    <h2 id="scenario-heading">1 · Choose and run a scenario</h2>
+    <div class="scenario-row">
+      <div id="scenario-list" class="scenario-list" role="radiogroup" aria-label="Scenario"></div>
+      <div class="run-box">
+        <button id="run-button" type="button" class="primary" disabled>Run with the C++ controller</button>
+        <p id="run-status" class="muted" role="status" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="results" class="results" hidden>
+    <section class="panel" aria-labelledby="playback-heading">
+      <h2 id="playback-heading">2 · Play back the day</h2>
+      <div class="playback">
+        <button id="first-button" type="button" aria-label="First interval">⏮</button>
+        <button id="previous-button" type="button" aria-label="Previous interval">◀</button>
+        <button id="play-button" type="button" aria-label="Play">▶ Play</button>
+        <button id="next-button" type="button" aria-label="Next interval">▶</button>
+        <input id="interval-slider" type="range" min="0" max="23" value="0" aria-label="Interval">
+        <span id="interval-label" class="clock">00:00</span>
+        <label class="muted">Speed
+          <select id="speed-select">
+            <option value="1200">slow</option>
+            <option value="600" selected>normal</option>
+            <option value="250">fast</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted small">Keyboard: ← → step, Space play/pause. Click a chart or a table row to jump to an interval.</p>
+    </section>
+
+    <div class="grid">
+      <section class="panel" aria-labelledby="flows-heading">
+        <h2 id="flows-heading">Generation and consumption (kWh per interval)</h2>
+        <div id="legend-flows" class="legend"></div>
+        <div id="chart-flows" class="chart"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="exchange-heading">
+        <h2 id="exchange-heading">Battery and grid exchange (kWh per interval)</h2>
+        <p class="muted small">Above zero: energy supplied to the building. Below zero: surplus sent into the battery or grid.</p>
+        <div id="legend-exchange" class="legend"></div>
+        <div id="chart-exchange" class="chart"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="soc-heading">
+        <h2 id="soc-heading">Battery state of charge (kWh, end of interval)</h2>
+        <div id="legend-soc" class="legend"></div>
+        <div id="chart-soc" class="chart"></div>
+      </section>
+
+      <section class="panel inspector" aria-labelledby="inspector-heading">
+        <h2 id="inspector-heading">Controller decision at <span id="inspector-clock">00:00</span></h2>
+        <div id="inspector"></div>
+      </section>
+    </div>
+
+    <section class="panel" aria-labelledby="comparison-heading">
+      <h2 id="comparison-heading">3 · C++ controller compared with the Python reference</h2>
+      <div class="comparison">
+        <div id="comparison-table"></div>
+        <div id="limits-explainer" class="explainer"></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="log-heading">
+      <h2 id="log-heading">Every decision</h2>
+      <div class="table-wrap">
+        <table id="decision-table">
+          <thead>
+            <tr>
+              <th scope="col">Time</th><th scope="col">Solar</th><th scope="col">Load</th><th scope="col">Net</th>
+              <th scope="col" class="text">Decision</th><th scope="col">kW</th><th scope="col">SoC before → after</th>
+              <th scope="col">Import</th><th scope="col">Export</th><th scope="col">Unresolved</th><th scope="col" class="text">Why</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </section>
+</main>
+<div id="tooltip" class="tooltip" hidden></div>
+</body>
+</html>
