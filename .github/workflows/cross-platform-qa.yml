@@ -1,0 +1,58 @@
+name: Cross-platform QA
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: C and C++ tests / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure native controller
+        run: cmake -S controller -B controller/build -DBUILD_TESTING=ON -DGRIDFLEX_BUILD_BENCHMARKS=ON
+      - name: Build native controller
+        run: cmake --build controller/build --config Release --parallel
+      - name: Test native controller
+        run: ctest --test-dir controller/build --build-config Release --output-on-failure
+      - name: Configure hardware implementation
+        run: cmake -S hardware -B hardware/build -DBUILD_TESTING=ON
+      - name: Build hardware implementation
+        run: cmake --build hardware/build --config Release --parallel
+      - name: Test hardware implementation
+        run: ctest --test-dir hardware/build --build-config Release --output-on-failure
+
+  simulation:
+    name: Python simulation / ${{ matrix.os }} / ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        python: ["3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: simulation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: simulation/pyproject.toml
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m ruff check .
+      - run: python -m mypy
+      - run: python -m pytest -q
